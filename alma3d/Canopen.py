@@ -23,7 +23,7 @@ class Canopen(protocol.ProcessProtocol):
         self.is_sending_position = 0
         #self.VT_L = 1255360
         #self.AT_L = 1000
-        self.VT_L = 1255360
+        self.VT_L = 600000
         self.AT_L = 500
 
     def sendCommand(self, command, sender):

@@ -86,9 +86,12 @@ class PositionProtocol(protocol.Protocol):
                                                       -float(self.tripod.motorPos['122']) / self.tripod.kinematic.mt_to_step,
                                                       float(self.tripod.motorPos['119']) / self.tripod.kinematic.radians_to_step])
             process_time = (time.time() - start) * 1000
-            roll = self.tripod.kinematic.rx_yxz
-            pitch = self.tripod.kinematic.ry_yxz
-            yaw = self.tripod.kinematic.rz_yxz
+            #roll = self.tripod.kinematic.rx_yxz
+            #pitch = self.tripod.kinematic.ry_yxz
+            #yaw = self.tripod.kinematic.rz_yxz
+            roll = self.tripod.kinematic.rx_zyx
+            pitch = self.tripod.kinematic.ry_zyx
+            yaw = self.tripod.kinematic.rz_zyx
             comment = "{:03d} / {:04.1f} ms".format(self.tripod.kinematic.cycles, process_time)
 
             if self.tripod.canStatus == '8':

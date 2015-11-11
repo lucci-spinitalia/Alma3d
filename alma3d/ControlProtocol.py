@@ -153,8 +153,8 @@ class ControlProtocol(LineReceiver):
                         # CT1 M121 P1231232 VM123 AM124
                         # CT1 M122 P1231232 VM123 AM124
                         self.tripod.canopen.is_sending_position = 1
-                        VT_R = 600000
-                        AT_R = 10
+                        VT_R = 100000
+                        AT_R = 200
                         line = "CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], VT_R,
                                                                AT_R)
                         self.tripod.canopen.sendCommand(line, "self")

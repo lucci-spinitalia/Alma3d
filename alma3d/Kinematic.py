@@ -42,11 +42,11 @@ class Kinematic():
             Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |
                      |  -s2         c2s3             c2c3       |
 
-    La convenzione avionica è invece la Y1X2Z3, ovvero:
+    La convenzione avionica è invece la X1Y2Z3, ovvero:
 
-                     |  c1c3 + s1s2s3    c3s1s2 - c1s3    c2s1  |
-            Y1X2Z3 = |      c2s3              c2c3        -s2   |
-                     |  c1s2s3 - c3s1    c1c3s2 + s1s3    c1c2  |
+                     |      c2c3              c2s3         s2   |
+            X1Y2Z3 = |  s1s2c3 - c1s3    c1c3 + s1s2s3   -c2s1  |
+                     |  c1s2c3 - s1s3    c1s2c3 + s2c3    c1c2  |
 
     Dal momento che gli angoli vengono definiti dalla sequenza scelta di operazioni, e che il roll è in pratica
     la rotazione attorno all'asse X SE E SOLO SE la sequenza di rotazioni è x1y2z3, ho deciso di nominame gli
@@ -154,12 +154,12 @@ class Kinematic():
         self.rx_zyx_r = 0.0
         self.ry_zyx_r = 0.0
         self.rz_zyx_r = 0.0
-        self.rx_yxz = 0.0
-        self.ry_yxz = 0.0
-        self.rz_yxz = 0.0
-        self.rx_yxz_r = 0.0
-        self.ry_yxz_r = 0.0
-        self.rz_yxz_r = 0.0
+        self.rx_xyz = 0.0
+        self.ry_xyz = 0.0
+        self.rz_xyz = 0.0
+        self.rx_xyz_r = 0.0
+        self.ry_xyz_r = 0.0
+        self.rz_xyz_r = 0.0
 
         # Calcolo della cinematica inversa
         self.icycles = 0
@@ -509,44 +509,49 @@ class Kinematic():
         self.ry_zyx = self.ry_zyx_r / M_TO_RAD
         self.rz_zyx = self.rz_zyx_r / M_TO_RAD
         angles = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
-        self.rx_yxz = angles[2]
-        self.ry_yxz = angles[0]
-        self.rz_yxz = angles[1]
-        self.rx_yxz_r = angles[5]
-        self.ry_yxz_r = angles[3]
-        self.rz_yxz_r = angles[4]
+        self.rx_xyz = angles[2]
+        self.ry_xyz = angles[0]
+        self.rz_xyz = angles[1]
+        self.rx_xyz_r = angles[5]
+        self.ry_xyz_r = angles[3]
+        self.rz_xyz_r = angles[4]
 
     def angles_to_avionics(self, rx_zyx, ry_zyx, rz_zyx):
-        """Converte una terna rotazionale da interna in avionica"""
+        """Converte una terna rotazionale da interna in avionica
+
+        :param rx_zyx: Angolo di Roll in radianti secondo la terna interna
+        :param ry_zyx: Angolo di Pitch in radianti secondo la terna interna
+        :param rz_zyx: Angolo di Yaw in radianti secondo la terna interna
+        """
 
         # Ora calcolo i termini in funzione degli angoli forniti
-        s1c2_yxz = (math.sin(rz_zyx) * math.sin(rx_zyx)) + (math.cos(rz_zyx)* math.sin(ry_zyx) * math.cos(rx_zyx))
-        s2_yxz = (math.cos(rz_zyx) * math.sin(rx_zyx)) - (math.sin(rz_zyx) * math.sin(ry_zyx) * math.cos(rx_zyx))
-        c2s3_yxz = math.sin(rz_zyx) * math.cos(ry_zyx)
+        s1c2_xyz = -(math.cos(rx_zyx) * math.sin(rz_zyx) * math.sin(ry_zyx) - (math.cos(rz_zyx) * math.sin(rx_zyx)))
+        s2_xyz = (math.sin(rz_zyx) * math.sin(rx_zyx)) + (math.cos(rz_zyx) * math.cos(rx_zyx) * math.sin(ry_zyx))
+        c2s3_xyz = (math.cos(rz_zyx) * math.sin(ry_zyx) * math.sin(rx_zyx)) - (math.cos(rx_zyx) * math.sin(rz_zyx))
 
         # Ora trovo gli angoli
-        rx_yxz_r = math.asin(s2_yxz)
-        c2_yxz = math.cos(rx_yxz_r)
-        ry_yxz_r = math.asin(s1c2_yxz / c2_yxz)
-        rz_yxz_r = math.asin(c2s3_yxz / c2_yxz)
-        rx_yxz = rx_yxz_r / M_PI * 180.0
-        ry_yxz = ry_yxz_r / M_PI * 180.0
-        rz_yxz = rz_yxz_r / M_PI * 180.0
+        rx_xyz_r = math.asin(s2_xyz)
+        c2_xyz = math.cos(rx_xyz_r)
+        ry_xyz_r = math.asin(s1c2_xyz / c2_xyz)
+        rz_xyz_r = math.asin(c2s3_xyz / c2_xyz)
+        rx_xyz = rx_xyz_r / M_PI * 180.0
+        ry_xyz = ry_xyz_r / M_PI * 180.0
+        rz_xyz = rz_xyz_r / M_PI * 180.0
 
-        return [rx_yxz, ry_yxz, rz_yxz, rx_yxz_r, ry_yxz_r, rz_yxz_r]
+        return [rx_xyz, ry_xyz, rz_xyz, rx_xyz_r, ry_xyz_r, rz_xyz_r]
 
-    def angles_to_internals(self, rx_yxz, ry_yxz, rz_yxz):
+    def angles_to_internals(self, rx_xyz, ry_xyz, rz_xyz):
         """Converte una terna rotazionale xyz da avionica ad interna, zyx"""
 
         # Converto gli angoli in ingresso in gradi
-        rx_yxz_r = rx_yxz / 180.0 * M_PI
-        ry_yxz_r = ry_yxz / 180.0 * M_PI
-        rz_yxz_r = rz_yxz / 180.0 * M_PI
+        rx_xyz_r = rx_xyz / 180.0 * M_PI
+        ry_xyz_r = ry_xyz / 180.0 * M_PI
+        rz_xyz_r = rz_xyz / 180.0 * M_PI
 
         # Ora calcolo i termini in funzione degli angoli forniti
-        c2s3_zyx = (math.cos(ry_yxz_r) * math.sin(rx_yxz_r) * math.cos(rz_yxz_r)) + (math.sin(ry_yxz_r) * math.sin(rz_yxz_r))
-        s2_zyx = (math.sin(ry_yxz_r) * math.cos(rz_yxz_r)) - (math.cos(ry_yxz_r) * math.sin(rx_yxz_r) * math.sin(rz_yxz_r))
-        s1c2_zyx = math.cos(rx_yxz_r) * math.sin(rz_yxz_r)
+        c2s3_zyx = math.cos(rz_xyz_r) * math.sin(ry_xyz_r) - math.cos(rx_xyz_r) * math.sin(ry_xyz_r) * math.sin(rz_xyz_r)
+        s2_zyx = math.sin(rx_xyz_r) * math.sin(rz_xyz_r) + math.cos(rx_xyz_r) * math.sin(ry_xyz_r) * math.cos(rz_xyz_r)
+        s1c2_zyx = -math.cos(rx_xyz_r) * math.sin(rz_xyz_r) + math.cos(rz_xyz_r) * math.sin(ry_xyz_r) * math.sin(rx_xyz_r)
 
         # Ora trovo gli angoli
         ry_zyx_r = math.asin(s2_zyx)
@@ -602,12 +607,12 @@ class Kinematic():
             self.cycles = res[7]
             angles = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
             #angles1 = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
-            self.rx_yxz = angles[2]
-            self.ry_yxz = angles[0]
-            self.rz_yxz = angles[1]
-            self.rx_yxz_r = angles[5]
-            self.ry_yxz_r = angles[3]
-            self.rz_yxz_r = angles[4]
+            self.rx_xyz = angles[2]
+            self.ry_xyz = angles[0]
+            self.rz_xyz = angles[1]
+            self.rx_xyz_r = angles[5]
+            self.ry_xyz_r = angles[3]
+            self.rz_xyz_r = angles[4]
             return True
         else:
             logging.error("Maximum number of cycles executed, no solution found [{}, {}, {} -> {} cycles]!".format(
@@ -753,11 +758,12 @@ class Kinematic():
 
         motor_steps = [0, 0, 0, 0]
 
-        angles2 = self.angles_to_internals(
-            float(rx_zyx.replace(',', '.')), float(ry_zyx.replace(',', '.')), float(rz_zyx.replace(',', '.'))
-        )
+        #angles2 = self.angles_to_internals(
+        #    float(rx_zyx.replace(',', '.')), float(ry_zyx.replace(',', '.')), float(rz_zyx.replace(',', '.'))
+        #)
 
-        if not self.calc_ik(float(angles2[0]), float(angles2[1]), float(angles2[2])):
+        #if not self.calc_ik(float(angles2[0]), float(angles2[1]), float(angles2[2])):
+        if not self.calc_ik(float(rx_zyx.replace(',', '.')), float(ry_zyx.replace(',', '.')), float(rz_zyx.replace(',', '.'))):
             return False
 
         # Converto gli angoli e le altezze dei pistoni in step motore
@@ -904,7 +910,7 @@ class Kinematic():
                         # Questa e' la terna avionica, quindi devo prima convertirla
                         # NON FUNZIONA LA CONVERSIONE IN CYTHON
                         # angles1 = kinematic_cy.angles_to_internals(sim_roll, sim_pitch, sim_yaw)
-                        angles2 = self.angles_to_internals(sim_roll, sim_pitch, sim_yaw)
+                        ####################### angles2 = self.angles_to_internals(sim_roll, sim_pitch, sim_yaw)
                         # logging.debug("({}, {}, {}) -> ({}, {}, {}) ({}, {}, {})".format(
                         #    sim_roll,
                         #    sim_pitch,
@@ -917,7 +923,8 @@ class Kinematic():
                         #    angles2[2]
                         # ))
 
-                        if not self.calc_ik(angles2[0], angles2[1], angles2[2]):
+                        if not self.calc_ik(sim_roll, sim_pitch, sim_yaw):
+                        #######################if not self.calc_ik(angles2[0], angles2[1], angles2[2]):
                             # TODO: devo stampare l'errore
                             return False
 
@@ -1329,9 +1336,9 @@ def test_conversion(k):
                 k.rx_zyx, pos[3],
                 k.ry_zyx, pos[4],
                 k.rz_zyx, pos[5],
-                k.rx_yxz, pos[6],
-                k.ry_yxz, pos[7],
-                k.rz_yxz, pos[8]
+                k.rx_xyz, pos[6],
+                k.ry_xyz, pos[7],
+                k.rz_xyz, pos[8]
             )
         )"""
 
