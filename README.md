@@ -54,6 +54,9 @@ Interventi effettuati prima della partenza
 
       if [ "$UM_MOUNTPOINT" = "/media/usb0" ]; then
         if [ -e "${UM_MOUNTPOINT}/alma3d_spinitalia_update" ]; then
+           if [ ! -e /opt/spinitalia ]; then
+              mkdir /opt/spinitalia
+           fi
            unzip -P BSQ9tdXDZlKc ${UM_MOUNTPOINT}/alma3d_spinitalia_update -d /opt/spinitalia
            if [ -e /opt/spinitalia/do_update ]; then
              /opt/spinitalia/do_update
