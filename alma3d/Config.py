@@ -6,10 +6,11 @@ class Config():
     def __init__(self):
 
         self.isFake = False
-        self.isLoginRequired = False
+        self.isLoginRequired = True
         self.FENCE_PIN = 12
-        self.INSTALL_PATH = "/opt/spinitalia/"
-        self.SIM_PATH = "/home/spinitalia/simulazioni/"
+        self.INSTALL_PATH = "/opt/spinitalia/service/"
+        self.SIM_PATH = "/tmp/spinitalia/simulation/"
+        self.LOG_PATH = "/tmp/spinitalia/logs/"
         #self.SIM_PATH = "/mnt/nas/media/"
         self.DEF_MOVE = "/opt/spinitalia/default_position/"
         self.MOT_DATA = "/tmp/spinitalia/motor_data/"

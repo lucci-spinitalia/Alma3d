@@ -225,10 +225,11 @@ cdef int search_base_angles(motor_positions):
     global cycles
 
     # Errore nelle soluzioni
-    cdef double err[3]
-    cdef int cycle_limit
-    cdef int n, j, i
-    cdef double step_alpha[3]
+    cdef:
+        double err[3]
+        int cycle_limit
+        int n, j, i
+        double step_alpha[3]
 
     cycle_limit = 1000
 
@@ -358,7 +359,7 @@ cpdef find_plane_angles(motor_positions):
     # Matrice con i tre punti del piano finora calcolati da distante_12/23/13 ed un
     # quarto punto mediano rispetto a 2 e 3
 
-    # Questa non so cosa sia
+    # Questa e' l'inizializzazione della matrice con le posizioni
     base_r[0][:] = [roof.x[0] - center_point_x,
                     roof.y[0] - center_point_y,
                     roof.z[0] - center_point_z]
@@ -372,6 +373,7 @@ cpdef find_plane_angles(motor_positions):
     mat_rot[1][:] = [0.0, 0.0, 0.0]
     mat_rot[2][:] = [0.0, 0.0, 0.0]
 
+    # Questo è il calcolo della matrice di rotazione
     for i in range(0, 2):
         mr = sqrt((base_r[i][0] ** 2) + (base_r[i][1] ** 2) + (base_r[i][2] ** 2))
         for j in range(0, 3):
@@ -383,6 +385,7 @@ cpdef find_plane_angles(motor_positions):
     for i in range(0, 3):
         mat_rot[i][2] = base_r[2][i]
 
+    # Dalla matrice di rotazione, ricavo per ispezione la terna di angoli di Tait-Bryan
     k17 = mat_rot[2][0]
     k16 = mat_rot[1][0]
     l17 = mat_rot[2][1]
@@ -397,6 +400,120 @@ cpdef find_plane_angles(motor_positions):
     roll = roll_r / M_PI * 180.0
     pitch = pitch_r / M_PI * 180.0
     yaw = yaw_r / M_PI * 180.0
+
+cpdef angles_to_avionics(rx_zyx, ry_zyx, rz_zyx):
+    """Converte una terna rotazionale da interna in avionica
+
+    Voglio convertire una termina angolare:
+
+      Z1Y2X3 -> Y1X2Z3
+
+    Possiedo i tre angoli di Z1Y2X3, che sono diversi dai tre di Y1X2Z3.
+
+    Procedo per ispezione tra le matrici:
+
+            INPUT
+                     |      c1c2         c1s2s3 - s1c3    s1s3 + c1s2c3  |
+            Z1Y2X3 = |      s1c2         c1c3 + s1s2s3    s1s2c3 - c1s3  |
+-                     |      -s2               c2s3            c2c3       |
+
+            OUTPUT
+                     |  c1c3 + s1s2s3    s1s2c3 - c1s3        s1c2       |
+            Y1X2Z3 = |      c2s3              c2c3            -s2        |
+                     |  c1s2s3 - s1c3    c1s2c3 + s1s3        c1c2       |
+
+    """
+
+    cdef:
+        double s1c2_yxz
+        double s2_yxz
+        double c2s3_yxz
+        double c2_yxz
+        double rx_yxz_r
+        double ry_yxz_r
+        double rz_yxz_r
+        double rx_yxz
+        double ry_yxz
+        double rz_yxz
+
+    # Ora calcolo i termini in funzione degli angoli forniti
+    s1c2_yxz = (sin(rz_zyx) * sin(rx_zyx)) + (cos(rz_zyx)* sin(ry_zyx) * cos(rx_zyx))
+    s2_yxz = (cos(rz_zyx) * sin(rx_zyx)) - (sin(rz_zyx) * sin(ry_zyx) * cos(rx_zyx))
+    c2s3_yxz = sin(rz_zyx) * cos(ry_zyx)
+
+    # Ora trovo gli angoli
+    rx_yxz_r = asin(s2_yxz)
+    c2_yxz = cos(rx_yxz_r)
+    ry_yxz_r = asin(s1c2_yxz / c2_yxz)
+    rz_yxz_r = asin(c2s3_yxz / c2_yxz)
+    rx_yxz = rx_yxz_r / M_PI * 180.0
+    ry_yxz = ry_yxz_r / M_PI * 180.0
+    rz_yxz = rz_yxz_r / M_PI * 180.0
+
+    return [rx_yxz, ry_yxz, rz_yxz, rx_yxz_r, ry_yxz_r, rz_yxz_r]
+
+cpdef angles_to_internals(rx_yxz, ry_yxz, rz_yxz):
+    """Converte una terna rotazionale xyz da avionica ad interna, zyx
+
+    TODO: NON Funziona, o meglio restituisce un risultato diverso dal python
+
+    Gli angoli in ingresso sono in gradi.
+
+    Voglio convertire una termina angolare:
+
+      Y1X2Z3-> Z1Y2X3
+
+    Possiedo i tre angoli di X1Y2Z3, che sono diversi dai tre di Z1Y2X3.
+
+    Procedo per ispezione tra le matrici:
+
+            INPUT
+                     |  c1c3 + s1s2s3    s1s2c3 - c1s3        s1c2       |
+            Y1X2Z3 = |      c2s3              c2c3            -s2        |
+                     |  c1s2s3 - s1c3    c1s2c3 + s1s3        c1c2       |
+
+            OUTPUT
+                     |      c1c2         c1s2s3 - s1c3    s1s3 + c1s2c3  |
+            Z1Y2X3 = |      s1c2         c1c3 + s1s2s3    s1s2c3 - c1s3  |
+                     |      -s2               c2s3            c2c3       |
+
+    """
+
+    cdef:
+        double rx_yxz_r
+        double ry_yxz_r
+        double rz_yxz_r
+        double c2s3_zyx
+        double s2_zyx
+        double s1c2_zyx
+        double c2_zyx
+        double rx_zyx_r
+        double ry_zyx_r
+        double rz_zyx_r
+        double rx_zyx
+        double ry_zyx
+        double rz_zyx
+
+    # Converto gli angoli in ingresso in gradi
+    rx_yxz_r = (rx_yxz / 180.0) * M_PI
+    ry_yxz_r = (ry_yxz / 180.0) * M_PI
+    rz_yxz_r = (rz_yxz / 180.0) * M_PI
+
+    # Ora calcolo i termini in funzione degli angoli forniti
+    c2s3_zyx = (cos(ry_yxz_r) * sin(rx_yxz_r) * cos(rz_yxz_r)) + (sin(ry_yxz_r) * sin(rz_yxz_r))
+    s2_zyx = (sin(ry_yxz_r) * cos(rz_yxz_r)) - (cos(ry_yxz_r) * sin(rx_yxz_r) * sin(rz_yxz_r))
+    s1c2_zyx = cos(rx_yxz_r) * sin(rz_yxz_r)
+
+    # Ora trovo gli angoli
+    ry_zyx_r = asin(s2_zyx)
+    c2_zyx = cos(ry_zyx_r)
+    rz_zyx_r = asin(s1c2_zyx / c2_zyx)
+    rx_zyx_r = asin(c2s3_zyx / c2_zyx)
+    rx_zyx = (rx_zyx_r / M_PI) * 180.0
+    ry_zyx = (ry_zyx_r / M_PI) * 180.0
+    rz_zyx = (rz_zyx_r / M_PI) * 180.0
+
+    return [rx_zyx, ry_zyx, rz_zyx, rx_zyx_r, ry_zyx_r, rz_zyx_r]
 
 def search_angles(motor_positions):
 

@@ -158,14 +158,12 @@ class Alarm():
 
         if not self.isFenceEnabled:
             return
-            
-        if self.isFencePresent:            
+
+        if self.isFencePresent:
             if not GPIO.input(self.INPUT_PIN):
-           		#self.all_on()
-           		#self.update()
-        		if not self.isFencedCrossed:
-        		    self.isFencedCrossed = True
-        		    self.tripod.goto_em2()
+                if not self.isFencedCrossed:
+                    self.isFencedCrossed = True
+                    self.tripod.goto_em2()
 
     def beep_on(self):
 
@@ -249,3 +247,41 @@ class Alarm():
             self.rele_bus.write_byte_data(self.DEVICE_ADDRESS, self.DEVICE_REG_MODE1, self.DEVICE_REG_DATA)
 
 
+if __name__ == '__main__':
+
+    from time import sleep
+
+    # Imposto il logging
+    # - debug
+    #   - info
+    #   - warn
+    #   - error
+    #   - critical
+    FORMAT = "[%(filename)s:%(lineno)3s - %(funcName)20s() ] %(message)s"
+    logging.basicConfig(format=FORMAT, level=logging.DEBUG)
+
+    class Tripod():
+
+        def __init__(self):
+
+            self.config = Config()
+            self.config.isFake = True
+            self.motor_address_list = ['119', '120', '121', '122']
+
+        def update_import_progress(self, progress, rownum):
+
+            print "{} / {}".format(progress, rownum)
+
+        def update_import_end(self, md5sum):
+
+            pass
+
+    my_tripod = Tripod()
+
+    # Istanzio la classe
+    a = Alarm(my_tripod)
+    a.fence_enabled()
+
+    print "Hallo!"
+
+    sleep(10)

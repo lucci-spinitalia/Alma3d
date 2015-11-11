@@ -113,11 +113,12 @@ class Tripod():
         # INFO: uso stdbuf per evitare il buffering dell'output se non in terminale
         if self.config.isFake:
             reactor.spawnProcess(self.canopen, "/usr/bin/stdbuf", args=["stdbuf", "--output=L", "--input=0",
-                "/opt/spinitalia/alma3d_canopenshell", "fake",
+                "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
+                "fake",
                 "load#libcanfestival_can_socket.so,0,1M,8"], env=os.environ, usePTY=False)
         else:
             reactor.spawnProcess(self.canopen, "/usr/bin/stdbuf", args=["stdbuf", "--output=L", "--input=0",
-                "/opt/spinitalia/alma3d_canopenshell",
+                "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
                 "load#libcanfestival_can_socket.so,0,1M,8"], env=os.environ, usePTY=False)
 
     def update_import_progress(self, value, line_num):
@@ -207,7 +208,7 @@ class Tripod():
 
     def goto_em2(self):
 
-        reactor.callFromThread(self.canopen.sendCommand, 'EM2')
+        reactor.callFromThread(self.canopen.sendCommand, 'EM2', "local")
 
     def send_tcp_response(self, data):
 

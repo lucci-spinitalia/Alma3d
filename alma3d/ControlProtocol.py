@@ -8,6 +8,7 @@ import shutil
 import sys
 import traceback
 import Config
+import subprocess
 
 
 class ControlProtocol(LineReceiver):
@@ -140,8 +141,8 @@ class ControlProtocol(LineReceiver):
 
                 matches = self.find_end_position.search(line.rstrip().upper())
                 if matches:
-                    self.sendLine("Roll:{}, Pitch:{}, Yaw:{}".format(matches.group(1), matches.group(2),
-                                                                     matches.group(3)))
+                    #self.sendLine("Roll:{}, Pitch:{}, Yaw:{}".format(matches.group(1), matches.group(2),
+                    #                                                 matches.group(3)))
                     if self.tripod.kinematic.convert_point(matches.group(1), matches.group(2), matches.group(3)):
                         # self.tripod.kinematic.last_conversion_steps
                         # Dovrei mandare
@@ -195,7 +196,7 @@ class ControlProtocol(LineReceiver):
             elif line.rstrip().upper()[:3] == 'CT4':
 
                 md5sum = self.tripod.last_sim
-                filename = "/home/spinitalia/simulazioni/logs/posizione_motori_{}.csv".format(md5sum)
+                filename = "{}posizione_motori_{}.csv".format(self.tripod.config.LOG_PATH, md5sum)
                 self.tripod.last_sim_file = open(filename, "w+")
                 os.chmod(filename, 0666)
                 self.tripod.last_sim_file.write("Counter;Time;Roll_DK;Pitch_DK;Yaw_DK;Step_119_Motor;Step_120_Motor;"
@@ -205,7 +206,10 @@ class ControlProtocol(LineReceiver):
 
             # Se era CT6, spegne il protocollo
             elif line.rstrip().upper()[:3] == 'CT6':
-                self.transport.loseConnection()
+                #self.transport.loseConnection()
+                process = subprocess.Popen("/sbin/poweroff", stdout=subprocess.PIPE)
+                output = process.communicate()[0]
+                logging.info("Poweroff says: '{}'".format(output))
                 return
 
             # Se era PR7, invio la simulazione memorizzata

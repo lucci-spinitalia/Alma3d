@@ -21,8 +21,10 @@ class Canopen(protocol.ProcessProtocol):
         self.sender = "local"
         self.tripod = tripod
         self.is_sending_position = 0
+        #self.VT_L = 1255360
+        #self.AT_L = 1000
         self.VT_L = 1255360
-        self.AT_L = 1000
+        self.AT_L = 500
 
     def sendCommand(self, command, sender):
 
@@ -66,6 +68,7 @@ class Canopen(protocol.ProcessProtocol):
             self.sendCommand("CT1 M122 P{} VM{} AM{} S".format(self.tripod.kinematic.last_conversion_steps[2],
                                                                self.VT_L, self.AT_L), "self")
             self.is_sending_position = 0
+            self.sender = "remote"
             return
 
         # Se la simulazione è terminata chiudo il file di log
