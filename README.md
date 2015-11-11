@@ -49,7 +49,7 @@ Interventi effettuati prima della partenza
       echo "  UM_MOUNTPOINT: $UM_MOUNTPOINT"   >> $V_LOG_OUTPUT
       echo "  UM_FILESYSTEM: $UM_FILESYSTEM"   >> $V_LOG_OUTPUT
       echo "UM_MOUNTOPTIONS: $UM_MOUNTOPTIONS" >> $V_LOG_OUTPUT
-      echo "      UM_VENDOR: $UM_VENDOR"       >> $V_LOG_OUTPUT
+      echo "      UM_VENDOR: $UM_VENDOR"       >> $V_LOG_OUTPUTst
       echo "       UM_MODEL: $UM_MODEL"        >> $V_LOG_OUTPUT
 
       if [ "$UM_MOUNTPOINT" = "/media/usb0" ]; then
