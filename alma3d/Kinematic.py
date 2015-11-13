@@ -449,9 +449,9 @@ class Kinematic():
 
         Usiamo le matrici di rotazione Z1Y2X3, ovvero prima rotazione
 
-                     |  c1c2  c1s2s3 - c3s1  s1s3 + c1c3s2  |
-            Z1Y2X3 = |  c2s1  c1c3 + s1s2s3  c3s1s2 - c1s3  |
-                     |  -s2       c2s3          c2c3        |
+                     |  c1c2  c1s2s3 - s1c3   c1s2c3 + s1s3  |
+            Z1Y2X3 = |  s1c2  s1s2s3 + c1c3   s1s2c3 - c1s3  |
+                     |  -s2       c2s3            c2c3       |
         """
 
         # Calcolo il punto mediano tra i vertici 2 e 3

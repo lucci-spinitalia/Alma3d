@@ -56,6 +56,7 @@ class ControlProtocol(LineReceiver):
         self.find_motor_address = re.compile('@M A([\d]*)')
         self.find_end_position = re.compile('CT1 R([+-]?(?:\d+\.\d*|\.\d+|\d+)) P([+-]?(?:\d+\.\d*|\.\d+|\d+)) '
                                             'Y([+-]?(?:\d+\.\d*|\.\d+|\d+))')
+        self.find_ip = re.compile('PR4 ([^ ]*) ([^ ]*) ([^ ]*)')
 
     def connectionMade(self):
     
@@ -220,6 +221,55 @@ class ControlProtocol(LineReceiver):
                 else:
                     self.transport.write("OK PR7 {}\n".format(self.tripod.last_sim))
                 return
+
+            # Se era PR7, invio la simulazione memorizzata
+            elif line.rstrip().upper()[:3] == 'PR4':
+
+                matches = self.find_ip.search(line.rstrip().upper())
+                if matches:
+                    network_file = open("/etc/network/interfaces", "w")
+                    network_file.write("auto lo\n")
+                    network_file.write("iface lo inet loopback\n")
+                    network_file.write("\n")
+                    network_file.write("# Versione con DHCP attivato\n")
+                    network_file.write("#auto eth0\n")
+                    network_file.write("#allow-hotplug eth0\n")
+                    network_file.write("#iface eth0 inet dhcp\n")
+                    network_file.write("\n")
+                    network_file.write("# Versione con IP statico\n")
+                    network_file.write("auto eth0\n")
+                    network_file.write("iface eth0 inet static\n")
+                    network_file.write("  address {}\n".format(matches.group(1)))
+                    network_file.write("  netmask {}\n".format(matches.group(2)))
+                    network_file.write("  gateway {}\n".format(matches.group(3)))
+                    network_file.write("\n")
+                    network_file.write("#auto wlan0\n")
+                    network_file.write("#allow-hotplug wlan0\n")
+                    network_file.write("#iface wlan0 inet manual\n")
+                    network_file.write("#wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf\n")
+                    network_file.write("\n")
+                    network_file.write("#auto wlan1\n")
+                    network_file.write("#allow-hotplug wlan1\n")
+                    network_file.write("#iface wlan1 inet manual\n")
+                    network_file.write("#wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf\n")
+                    network_file.write("\n")
+                    network_file.write("auto can0\n")
+                    network_file.write("iface can0 inet manual\n")
+                    network_file.write("pre-up /sbin/ip link set can0 qlen 1000 type can bitrate 1000000 triple-sampling on\n")
+                    network_file.write("up /sbin/ifconfig can0 up\n")
+                    network_file.write("down /sbin/ifconfig can0 down\n")
+                    network_file.close()
+
+                    # matches.group(1) -> IP
+                    # matches.group(2) -> Subnet
+                    # matches.group(3) -> Getway
+                    self.transport.write("OK PR4 (IP:{}, SUBNET:{}, GETWAY:{})\n".format(
+                        matches.group(1),
+                        matches.group(2),
+                        matches.group(3)
+                    ))
+                    subprocess.check_output(["/etc/init.d/networking", "reload"])
+                    return
 
             self.tripod.canopen.sendCommand(line, "remote")
             self.last_command = line.rstrip().upper()

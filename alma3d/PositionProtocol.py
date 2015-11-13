@@ -80,19 +80,20 @@ class PositionProtocol(protocol.Protocol):
 
         else:
 
-            start = time.time()
+            #start = time.time()
             self.tripod.kinematic.find_solution_fast([-float(self.tripod.motorPos['120']) / self.tripod.kinematic.mt_to_step,
                                                       -float(self.tripod.motorPos['121']) / self.tripod.kinematic.mt_to_step,
                                                       -float(self.tripod.motorPos['122']) / self.tripod.kinematic.mt_to_step,
                                                       float(self.tripod.motorPos['119']) / self.tripod.kinematic.radians_to_step])
-            process_time = (time.time() - start) * 1000
+            #process_time = (time.time() - start) * 1000
             #roll = self.tripod.kinematic.rx_yxz
             #pitch = self.tripod.kinematic.ry_yxz
             #yaw = self.tripod.kinematic.rz_yxz
             roll = self.tripod.kinematic.rx_zyx
             pitch = self.tripod.kinematic.ry_zyx
             yaw = self.tripod.kinematic.rz_zyx
-            comment = "{:03d} / {:04.1f} ms".format(self.tripod.kinematic.cycles, process_time)
+            #comment = "{:03d} / {:04.1f} ms".format(self.tripod.kinematic.cycles, process_time)
+            comment = ""
 
             if self.tripod.canStatus == '8':
 
@@ -119,9 +120,10 @@ class PositionProtocol(protocol.Protocol):
         #    comment))
 
         try:
-            self.transport.write("{:10d};{:+08.3f};{:+08.3f};{:+09.3f};AS{};"
+            # R12.321;P-2.23;Y0;AS0;T10;C0;avvio simulazione 33c995835f28604045b1256f645c9195
+            # Non vengono piu' usati: int(self.tripod.mex_counter)
+            self.transport.write("R{:+08.3f};P{:+08.3f};Y{:+09.3f};AS{};"
                                  "T{:04.1f};C{:03d};{}            \n".format(
-                int(self.tripod.mex_counter),
                 roll,
                 pitch,
                 yaw,
