@@ -61,7 +61,7 @@ modo:
 infine, essendo a senso unico, i messaggi provenienti dal programma 
 alma3d_canopenshell saranno segnati semplicemente come segue:
 
-    % <informazioni dalla pipe >
+    %%%% <informazioni dalla pipe >
 
 Il programma Alma3d detiene il controllo del sistema ospitando tra i suoi
 thread il software canopenshell. L'utente si interfaccia direttamente con
@@ -142,7 +142,7 @@ funzionamento reale.
 Una volta aperta fornisce le seguenti informazioni secondo il seguente
 formato:
 
-  % @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS6 T9 C0
+  %%%% @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS6 T9 C0
 
 Le informazioni fornite possiedono la seguente notazione:
 
@@ -156,7 +156,7 @@ Le informazioni fornite possiedono la seguente notazione:
 
 Esempio:
 
-  % @M119 S0 @M120 S100 @M121 S1234 @M122 S320000 AS6 T9.98 C0
+  %%%% @M119 S0 @M120 S100 @M121 S1234 @M122 S320000 AS6 T9.98 C0
 
 
 I motori identificati come @M120...122 comandano i tre pistoni verticali, 
@@ -261,17 +261,30 @@ rimandando più avanti una descrizione più dettagliata.
                           | [PR5 M120 O60FB S008 T32s xx]
                           | [PR5 M121 O60FB S008 T32s xx]
                           | [PR5 M121 O60FB S008 T32s xx]
-   CT1 Raa Pbb Ycc Vdd    | CT1 M120 Pxx VMyy AMzz 0
-                          | CT1 M121 Pxx VMyy AMzz 0
-                          | CT1 M122 Pxx VMyy AMzz 1
+   CT1 Raa Pbb Ycc Vdd    | CT1 M120 Pxx VMyy AMzz
+                          | CT1 M121 Pxx VMyy AMzz
+                          | CT1 M122 Pxx VMyy AMzz S
    CT2 P1                 | CT2 P1
    CT2 P2                 | CT2 P1
    CT2 P3                 | CT2 P3
-   CT2 P4                 | CT2 P4
+   CT2 P4                 | CT1 M119 P312000 VMyy AMzz
+                          | CT1 M120 P312000 VMyy AMzz
+                          | CT1 M121 P312000 VMyy AMzz
+                          | CT1 M122 P312000 VMyy AMzz S
    CT3 <nome file>        | -
-   CT4                    | CT4
+   CT4                    | PR5 M120 O2101 S03 T16u 2
+                          | PR5 M121 O2101 S03 T16u 2
+                          | PR5 M122 O2101 S03 T16u 2
+                          | PR5 M120 O2101 S03 T16u 3
+                          | PR5 M121 O2101 S03 T16u 3
+                          | PR5 M122 O2101 S03 T16u 3
+                          | CT4
    CT5                    | CT5
-   CT6                    | CT6
+   CT6                    | CT1 M119 P312000 VMyy AMzz
+                          | CT1 M120 P312000 VMyy AMzz
+                          | CT1 M121 P312000 VMyy AMzz
+                          | CT1 M122 P312000 VMyy AMzz S
+                          | CT6
   ------------------------|---------------------------------
    EM1                    | EM1
    EM2                    | EM2
@@ -290,137 +303,240 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
     - LGN <user> <password>
 
         Accede al sistema tramite le credenziali fornite. Il nome utente
-        e' fisso, 'alma_user', mentre la password di default e'
-          'spinitalia'.
+        e' fisso, 'alma_user', mentre la password di default e' 
+        'spinitalia'.
         Per l'accesso come amministratore in caso di manutenzione, basta
         loggarsi come 'alma3d_admin' e password da decidere.
 
         In caso di successo viene inviata la stringa:
 
-          OK LGN
+          <tcp< OK LGN
 
         In caso di errore:
 
-          CERR LGN 0: Wrong password
+          <tcp< CERR LGN 0: Wrong password
 
-    - CT0 M4
-        Avvia la procedura di inizializzazione dei 4 motori, che
-        restituisce la loro lista in ordine libero di risposta,
-        secondo il seguente formato:
+        Esempio:
+          >tcp> LGN alma_user pippo
+          <tcp< CERR LGN 0: Wrong password
 
-          @M A121      ( non disponibile all'esterno )
-          @M A52       ( non disponibile all'esterno )
-          @M A12       ( non disponibile all'esterno )
-          @M A43       ( non disponibile all'esterno )
-          OK CT0
+          >tcp> LGN alma_user spinitalia
+          <tcp< OK LGN
 
-        se tutti i motori sono presenti, altrimenti:
+    - CT0 [Wxx]
+        Avvia la procedura di inizializzazione dei 4 motori 
+        inviando il comando CT0 M4 al programma alma3d_canopenshell.
+        Se l'inizializzazione va a buon fine, allora viene restuito:
 
-          CERR CT0 0: Motori dichiarati non trovati
+          <tcp< OK CT0
 
-        Devo mandare
+        altrimenti:
 
-          60FB 008 Signed 32 bit
-          PR5 M120 O60FB S008 T32s 64F
-          PR5 M121 O60FB S008 T32s 64F
-          PR5 M122 O60FB S008 T32s 64F
+          <tcp< CERR CT0 0: Motori dichiarati non trovati
 
-          Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
-          con un 8bit unsigned ( <8/16/32><s/u> )
+        Esempio:
+          >tcp>CT0
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< CERR CT0 0: Motori dichiarati non trovati
+          <tcp< CERR CT0 0: Motori dichiarati non trovati
 
-    - CT1 M119 P1231232 VM123 AM124 [S]
+          >tcp>CT0
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< @A121
+          <<<< @A122
+          <<<< OK CT0
+          <tcp< OK CT0
 
-          Porta il tripode nel punto identificato dalle quattro coordinate in step dei motori, con una
-          velocita' di 123 in unita' motore con un'accellerazione di 124 in unita' motore.
-          Se il comando termina con S, viene anche inviato lo start a tutti i motori.
+        Il parametro opzionale W indica il peso caricato sul piatto del
+        tripode. Nel caso fosse presente, il programma Alma3d si occupa
+        di mandare dei messaggi aggiuntivi per impostare il PID dei 
+        motori per avere migliori prestazioni dinamiche.
 
-          VT = Velocity * 65536      ( Giri al secondo   )
-          AT = Acceleration * 8192   ( Giri al secondo^2 )
+        Esempio:
+          >tcp>CT0 W100
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< @A121
+          <<<< @A122
+          <<<< OK CT0
+          <tcp< OK CT0
 
-          Per l'attuatore rotativo, questi valori diventano:
+          >>>> PR5 M120 O60FB S008 T32s C3500
+          <<<< OK PR5
+          >>>> PR5 M121 O60FB S008 T32s C3500
+          <<<< OK PR5
+          >>>> PR5 M122 O60FB S008 T32s C3500
+          <<<< OK PR5
 
-          VT = Velocity * 65536 * 115 / 360     ( Gradi al secondo   )
-          AT = Acceleration * 8192 * 115 / 360  ( Gradi al secondo^2 )
+    - CT1 R<roll> P<pitch> Y<yaw> V<% vel max>
+        Porta il tripode nel punto identificato dalla terna RPY.
+        Alma3d converte i punti dalle RPY in step motore tramite l'algoritmo 
+        di cinematica inversa ed invia tanti comandi CT1 Mxx Pyy VMzz AMww
+        da passare a alma3d_canopenshell. La velocità massima è definita in
+        un file di configurazione chiuso ed il termine <% vel max> rappresenta
+        la percentuale di velocità massima da utilizzare. Alma3d si preoccupa 
+        anche di controllare se la destinazione finale impostata rientra
+        nell'area di lavoro del tripode.
 
-          Per l'attuatore lineare, questi valori diventano:
+        Se i parametri sono corretti e l'operazione va a buon fine, viene
+        restituito:
 
-          VT = Velocity * 65536 * 10     ( mm al secondo   )
-          AT = Acceleration * 8192 * 10  ( mm al secondo^2 )
+          <tcp< OK CT1
 
-    - CT1 M52 S-1421774321 T18546 ( non disponibile all'esterno )
+        altrimenti:
 
-          Muove il motore con indirizzo 52 allo step -1.421.774.321 in
-          18,546 secondi. Questo comando viene inserito all'interno del
-          file 52.mot e proviene da un file di configurazione non
-          accessibile dall'esterno.
+          <tcp< CERR CT1 0: 
 
-    - CT1 M121 H-2314085 VF2000 VB1000  ( non disponibile all'esterno )
+        Per esempio, per spostare il tripode nella posizione R20 P10 Y360 con una
+        velocità pari al 30% di quella massima:
 
-          Imposta la posizione di HOME del motore con indirizzo 121 ad
-          una distanza di -2.314.085 step dal finecorsa, raggiungendolo
-          con una velocita' di 2000RPM ed allontanandosi con una velocita'
-          di 1000RPM. Questo comando viene inserito all'interno del file
-          121.mot e proviene da un file di configurazione non accessibile
-          dall'esterno.
+          >tcp> CT1 R20 P10 Y360 V30
+          >>>> CT1 M119 P1231232 VM123 AM124
+          <<<< OK CT1
+          >>>> CT1 M120 P320000 VM123 AM124
+          <<<< OK CT1
+          >>>> CT1 M121 P34587 VM123 AM124
+          <<<< OK CT1
+          >>>> CT1 M122 P3156 VM123 AM124 S
+          <<<< OK CT1
+          <tcp< OK CT1
 
     - CT2 P1
 
-          Avvia la procedura di ricerca il fine corsa di tutti i motori e si
-          sposta nella posizione configurata come HOME.
+          Copia la posizione di HOME predefinita in ogni file dei 4 motori ed avvia la 
+          procedura di ricerca il fine corsa. Questo comando serve per impostare la posizione
+          iniziale dei motori i quali non presentano un encoder assoluto integrato.Una volta 
+          conclusa la procedura, il tripode si trova nella posizione di HOME.
+
+          In caso di successo, viene restituito:
+
+            <tcp< OK CT2 P1
+
+          altrimenti:
+
+            <tcp< CERR CT2 P1
+
+          Esempio:
+            >tcp> CT2 P1
+            >>>> CT2 P1
+            <<<< CT2 P1
+            <tcp< CT2 P1
 
     - CT2 P2
 
-          Sposta il sistema nella posizione di home.
-
-          Una volta conclusa la procedura Devo mandare
-
-          60FB 008 Signed 32 bit
-          PR5 M120 O60FB S008 T32s 64F
-          PR5 M121 O60FB S008 T32s 64F
-          PR5 M122 O60FB S008 T32s 64F
-
-          Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
-          con un 8bit unsigned ( <8/16/32><s/u> )
+          Sposta il sistema nella posizione di HOME.
 
     - CT2 P3
 
-          Porta con gravita' il sistema al minimo di altezza.
+          Rilascia il controllo dei motori con l'effetto dell'abbassamento
+          dei pistoni per effetto gravità. Rimane comunque attivo il 
+          freno-motore così da rallentarne la caduta.
 
     - CT2 P4
 
-          Porta il sistema al minimo di altezza in modo controllato.
+          Porta il sistema al minimo di altezza controllando la discesa inviando
+          dei comandi CT1 a tutti i motori con impostata l'altezza minima raggiungibile.
 
-    - CT3 5757c1a61f2360039e0cb3c15a1cd69f
+          In caso di successo, viene restituito:
 
-          Avvia il controllo della simulazione che deve essere presente nella
-          nella cartella condivisa '\\TRIPODEALMA3D\' e generare un HASH
-          MD5SUM pari a 5757c1a61f2360039e0cb3c15a1cd69f.
+            <tcp< OK CT2 P4
+          
+          altrimenti:
+ 
+            <tcp< CERR CT2 P4
+
+       
+          Esempio:
+
+            >tcp> CT2 P4
+            >>>> CT1 M119 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M120 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M121 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M122 P312000 VM300000 AM100
+            <<<< OK CT1
+            <tcp< OK CT2 P4
+          
+
+    - CT3 <nome file>
+
+          Avvia il controllo della simulazione <nome file> che deve essere presente nella
+          nella cartella condivisa '\\TRIPODEALMA3D\' 
 
           Se il contenuto del file risulta regolare, il comando restituisce:
 
-            OK CT3
+            <tcp< OK CT3
 
           Durante la conversione, il processo indica la percentuale di
           completamento nello stream della porta 10001.
+
+          Esempio:
+            >tcp> CT3 simulazione.csv
+            %tcp% R0;P0;Y0;AS7;T10.0;C0
+            %tcp% R0;P0;Y0;AS7;T10.0;C1
+            %tcp% R0;P0;Y0;AS7;T10.0;C5
+                          .
+                          .
+                          .
+            %tcp% R0;P0;Y0;AS7;T10.0;C100
+            <tcp< OK CT3
 
     - CT4
 
-          Per prima cosa abilito i limiti di giunto per i pistoni per garantire la
+          Per prima cosa abilita i limiti di giunto per i pistoni per garantire la
           movimentazione completa, ma li lascia disabilitati nel motore di
           rotazione (yaw).
 
-            PR5 M120-122 O2101 S03 T16u 2 # Limite sinistro
-            PR5 M120-122 O2101 S03 T16u 3 # Limite destro
+            >>>> PR5 M120 O2101 S03 T16u 2
+            >>>> PR5 M120 O2101 S03 T16u 3
 
-          Avvia la simulazione il cui file originario presenta un HASH
-          MD5SUM pari a 5757c1a61f2360039e0cb3c15a1cd69f.
+          Avvia la simulazione e, una volta terminata, il sistema restituisce:
 
-          Quando e' terminata, il sistema restituisce:
+            <tcp< OK CT4
 
-            OK CT4
+          Invece, nel caso la simulazione sia interrotta da un evento asincrono
+          o da un comando, viene restituito:
 
-          Durante la conversione, il processo indica la percentuale di
+            <tcp< CERR CT4
+
+          Durante la simulazone, il processo indica la percentuale di
           completamento nello stream della porta 10001.
+
+          Esempio:
+            >tcp> CT4
+            >>>> PR5 M120 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M121 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M122 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M120 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> PR5 M121 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> PR5 M122 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> CT4
+            %%%% @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C0
+            %tcp% R0.000;P0.000;Y0.000;AS7;T10.0;C0
+            %%%% @M119 S100 @M120 S0 @M121 S0 @M122 S0 AS7 T10.00 C1
+            %tcp% R0.123;P0.000;Y0.000;AS7;T10.0;C1
+            %%%% @M119 S200 @M120 S0 @M121 S0 @M122 S0 AS7 T9.96 C5
+            %tcp% R0.500;P0.000;Y0.000;AS7;T10.0;C5
+                          .
+                          .
+                          .
+            %%%% @M119 S-320000 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C100
+            %tcp% R22.500;P0.000;Y0.000;AS7;T10.0;C100
+            <<<< OK CT4
+            <tcp< OK CT4
 
     - CT5
 
@@ -428,8 +544,39 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
           l'unico ad essere accettato durante una simulazione, e
           provoca le seguenti risposte:
 
-            CERR CT5 0: Simulazione interrotta
+            CERR CT4 0: Simulazione interrotta
             OK CT5
+
+          Esempio:
+            >tcp> CT4
+            >>>> PR5 M120 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M121 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M122 O2101 S03 T16u 2
+            <<<< OK PR5
+            >>>> PR5 M120 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> PR5 M121 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> PR5 M122 O2101 S03 T16u 3
+            <<<< OK PR5
+            >>>> CT4
+            %%%% @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C0
+            %tcp% R0.000;P0.000;Y0.000;AS7;T10.0;C0
+            %%%% @M119 S100 @M120 S0 @M121 S0 @M122 S0 AS7 T10.00 C1
+            %tcp% R0.123;P0.000;Y0.000;AS7;T10.0;C1
+            %%%% @M119 S200 @M120 S0 @M121 S0 @M122 S0 AS7 T9.96 C5
+            %tcp% R0.500;P0.000;Y0.000;AS7;T10.0;C5
+                          .
+                          .
+                          .
+            >tcp> CT5
+            >>>> CT5
+            <<<< CERR CT4 0: Simulazione interrotta
+            <tcp< CERR CT4 0: Simulazione interrotta
+            <<<< OK CT5
+            <tcp< OK CT5
 
     - CT6
 
@@ -437,9 +584,24 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
           orizzontale alla sua altezza minima. Al termine dell'operazione
           invia:
 
-            OK CT6
+            <tcp< OK CT6
 
           Successivamente esegue l'arresto completo del dispositivo.
+
+          Esempio:
+    
+            >tcp> CT6
+            >>>> CT1 M119 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M120 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M121 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT1 M122 P312000 VM300000 AM100
+            <<<< OK CT1
+            >>>> CT6
+            <<<< OK CT6
+            <tcp< OK CT6
 
 Sono implementate le seguenti procedure di emergenza:
 
@@ -510,8 +672,205 @@ Sono implementati i seguenti parametri:
           Richiede l'MD5SUM dell'ultima simulazione convertita
 
 
-##5.1 La conversione della simulazione
+##5.3 Descrizione comandi alma3d_canopenshell
+=============================================
+    - CT0 M<num motori>
+        Invia un segnale di reset a tutti i dispositivi canopen
+        presenti sul bus che ne impone la dichiarazione. Ad ogni motore
+        che si dichiara viene generata in output la seguente stringa:
+
+            <<<< @A<indirizzo motore>
+        
+
+        Se dopo un certo periodo di tempo i motori che si sono dichiarati
+        sono proprio <num motori>, allora alma3d_canopenshell restituisce:
+
+          <<<< OK CT0
+
+        altrimenti:
+
+          <<<< CERR CT0 0: Motori dichiarati non trovati
+
+        Esempio:
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< CERR CT0 0: Motori dichiarati non trovati
+
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< @A121
+          <<<< @A122
+          <<<< @A123
+          <<<< CERR CT0 0: Motori dichiarati non trovati
+
+          >>>> CT0 M4
+          <<<< @A119
+          <<<< @A120
+          <<<< @A121
+          <<<< @A122
+          <<<< OK CT0
+
+    - CT1 M<motore> P<step> VM<velocità> AM<accelerazione> [S]
+
+          Porta il tripode nel punto identificato dalle quattro coordinate in step dei motori, 
+          con una velocita' <velocità> in unita' motore con un'accellerazione <accelerazione> 
+          in unita' motore. 
+
+          Se il comando viene impartito senza il parametro opzionale [S], il motore interessato
+          carica la posizione finale, ma non viene avviato. Nel momento in cui viene inviato il 
+          comando con il parametro [S], tutti i motori precaricati si avviano. Questo è un modo
+          per far partire i movimenti comandati in modo sincrono.
+          
+          Se i parametri sono corretti e l'operazione va a buon fine, viene
+          restituito:
+
+            <tcp< OK CT1
+
+          altrimenti:
+
+            <tcp< CERR CT1
+
+          Esempio:
+            >>>> CT1 M119 P1231232 VM123 AM124
+            <<<< OK CT1
+            >>>> CT1 M120 P320000 VM123 AM124
+            <<<< OK CT1
+            >>>> CT1 M121 P34587 VM123 AM124
+            <<<< OK CT1
+            >>>> CT1 M122 P3156 VM123 AM124 S
+            <<<< OK CT1
+
+          I parametri <velocità> ed <accelerazione> sono espressi in unità
+          proprietarie del motore. Per convertire una velocità espressa in
+          giri al secondo, oppure un'accelerazione espressa in giri al 
+          secondo^2, utilizzare le seguenti formule:
+
+          VT = Velocity * 65536      ( Giri al secondo   )
+          AT = Acceleration * 8192   ( Giri al secondo^2 )
+
+          Per l'attuatore rotativo, questi valori diventano:
+
+          VT = Velocity * 65536 * 115 / 360     ( Gradi al secondo   )
+          AT = Acceleration * 8192 * 115 / 360  ( Gradi al secondo^2 )
+
+          Per l'attuatore lineare, questi valori diventano:
+
+          VT = Velocity * 65536 * 10     ( mm al secondo   )
+          AT = Acceleration * 8192 * 10  ( mm al secondo^2 )
+
+    - CT2 P1
+
+          Avvia la procedura di ricerca il fine corsa di tutti i motori e si
+          sposta nella posizione configurata come HOME. La posizione di HOME
+          e la velocità di spostamento per la ricerca vengono letti dal file 
+          motore .mot, il quale deve contenere la stringa nel giusto formato
+          (vedi "I file di simulazione")
+
+          In caso di successo, viene restituito:
+
+            <tcp< OK CT2 P1
+
+          altrimenti, nel caso la stringa di homing non fosse conforme al formato
+          atteso:
+
+            <tcp< CERR CT2 P1
+
+          Esempio:
+            >tcp> CT2 P1
+            >>>> CT2 P1
+            <<<< CT2 P1
+            <tcp< CT2 P1
+
+    - CT2 P2
+          Sposta il sistema nella posizione di HOME.
+
+    - CT2 P3
+
+          Rilascia il controllo dei motori con l'effetto dell'abbassamento
+          dei pistoni per effetto gravità. Rimane comunque attivo il 
+          freno-motore così da rallentarne la caduta.
+
+    - CT4
+
+          Avvia la simulazione prendendo le posizioni dai file motori .Una volta 
+          terminata, il sistema restituisce:
+
+            <<<< OK CT4
+
+          Invece, nel caso la simulazione sia interrotta da un evento asincrono
+          o da un comando, viene restituito:
+
+            <<<< CERR CT4
+
+          Durante la simulazone, la percentuale di completamento viene aggiornata 
+          nello stream della pipe:
+
+          Esempio:
+            >>>> CT4
+            %%%% @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C0
+            %%%% @M119 S100 @M120 S0 @M121 S0 @M122 S0 AS7 T10.00 C1
+            %%%% @M119 S200 @M120 S0 @M121 S0 @M122 S0 AS7 T9.96 C5
+                          .
+                          .
+                          .
+            %%%% @M119 S-320000 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C100
+            <<<< OK CT4
+
+    - CT5
+
+          Arresta la simulazione interrompendola. Questo comando e'
+          l'unico ad essere accettato durante una simulazione, e
+          provoca le seguenti risposte:
+
+            CERR CT4 0: Simulazione interrotta
+            OK CT5
+
+          Esempio:
+            >>>> CT4
+            %%%% @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS7 T9.98 C0
+            %%%% @M119 S100 @M120 S0 @M121 S0 @M122 S0 AS7 T10.00 C1
+            %%%% @M119 S200 @M120 S0 @M121 S0 @M122 S0 AS7 T9.96 C5
+                          .
+                          .
+                          .
+            >>>> CT5
+            <<<< CERR CT4 0: Simulazione interrotta
+            <<<< OK CT5
+
+    - CT6
+
+          Rilascia tutte le risorse canopen e chiude il programma. Appena prima 
+          della chiusura, viene inviato:
+
+            <<<< OK CT6
+
+
+          Esempio:
+    
+            >>>> CT6
+            <<<< OK CT6
+
+
+##5.4 I file di simulazione
 ======================================
+
+    - CT1 M52 S-1421774321 T18546 ( non disponibile all'esterno )
+
+          Muove il motore con indirizzo 52 allo step -1.421.774.321 in
+          18,546 secondi. Questo comando viene inserito all'interno del
+          file 52.mot e proviene da un file di configurazione non
+          accessibile dall'esterno.
+
+    - CT1 M121 H-2314085 VF2000 VB1000  ( non disponibile all'esterno )
+
+          Imposta la posizione di HOME del motore con indirizzo 121 ad
+          una distanza di -2.314.085 step dal finecorsa, raggiungendolo
+          con una velocita' di 2000RPM ed allontanandosi con una velocita'
+          di 1000RPM. Questo comando viene inserito all'interno del file
+          121.mot e proviene da un file di configurazione non accessibile
+          dall'esterno.
 
 #6. Inizializzazione del sistema Alma3d
 =======================================
