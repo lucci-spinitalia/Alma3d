@@ -4,51 +4,103 @@ Rev.9 -- da confrontare con il manuale cliente! --
 Data 1/09/2015
 
 
-Indice
-======
+# Indice
+========
 
   1. Descrizione generale
   2. Ricerca dell'indirizzo del tripode
   3. Invio di una simulazione
   4. Determinazione della posizione del tripode
   5. Operazioni con il tripode
-  6. Processi
-  7. Funzionalita da implementare
-  8. Unittest
+  6. Inizializzazione del sistema Alma3d
+  7. Gestione degli errori asincroni
+  8. Processi
+  9. Funzionalita da implementare
+  10. Unittest
 
   A. Unita' di misura
   B. Stati del sistema
   C. Riferimenti
 
 
-1. Descrizione generale
-=======================
+# 1. Descrizione generale
+=========================
 
 Il tripode Spinitalia Alma3D e' dotato di una connessione Ethernet 10/100
 accessibile tramite il connettore RJ45 (CN09) del quadro di comando generale
 (QCG).
 
-Una volta connesso alla rete, il tripode si configura con un IP fornito
-dal servizio DHCP presente, oppure con un indirizzo IP statico se
-configurato.
+Una volta connesso alla rete, il tripode si configura con un indirizzo IP 
+statico pre-configurato. E' possibile modificare il suddetto indirizzo
+tramite l'apposito comando.
 
+All'avvio del sistema vengono eseguiti automaticamente due programmi: 
+alma3d_canopenshell, che controlla i motori con comandi a basso livello, e
+Alma3d, che rappresenta l'interfaccia tra il primo e l'esterno.
 
-2. Ricerca dell'indirizzo del tripode
-=====================================
+Il programma alma3d_canopenshell è scritto in c e si occupa di tradurre i
+comandi passati al suo standard input nel linguaggio motori, nonchè 
+inizializzare e gestire l'intero stack canopen. Ogni comunicazione da/verso
+l'interfaccia Alma3d avviene tramite il suo standard input/output. Esiste un altro
+canale di comunicazione per l'invio delle posizioni e dello stato dei motori
+rappresentato da una pipe creata all'avvio del servizio. Questa esigenza nasce
+dall'alta frequenza di aggiornamento delle suddette informazioni, che, altrimenti,
+andrebbero a mascherare i comandi e le relative risposte, rendendo impossibile un
+debug senza l'ausilio di un terzo programma per il parsing.
 
-Il tripode invia il proprio indirizzo IP rispondendo ad una richiesta
-UDP Multicast sul gruppo 228.0.0.5, porta 10000, contenente la stringa
-'Ping Spinitalia_ALMA3D'.
+Nel proseguio del documento, i messaggi inviati dal programma canopenshell 
+saranno indicati nel seguente modo:
 
-La risposta 'Pong Spinitalia_ALMA3D' giungera' via UDP direttamente
-dal tripode, consentendone di identificare l'IP.
+    <<<< <messaggio da alma3d_canopenshell>
 
-Un altro metodo per trovare l'ip consiste nel richidere la risoluzione
+mentre quelli inviati al programma canopenshell saranno indicati nel seguente
+modo:
+
+    >>>> <messaggio per alma3d_canopenshell>
+
+infine, essendo a senso unico, i messaggi provenienti dal programma 
+alma3d_canopenshell saranno segnati semplicemente come segue:
+
+    % <informazioni dalla pipe >
+
+Il programma Alma3d detiene il controllo del sistema ospitando tra i suoi
+thread il software canopenshell. L'utente si interfaccia direttamente con
+lui tramite una connessione tcp ed i messaggi scambiati vengono parzialmente
+interpretati per poi essere passati al controllo motori. Alma3d implementa al
+suo interno anche gli algoritmi per la conversione del file simulazione csv in
+"file motori" e per la decodifica delle posizioni motori nella terna
+roll/pitch/yaw (chiamati rispettivamente cinematica inversa e diretta). Un altro
+compito demandato a questa unità è la gestione della barriera infrarossi.
+Come alma3d_canopenshell, Alma3d utilizza un altro canale di comunicazione, in questo
+caso un'altra porta tcp, per l'invio della posizione attuale del sistema nel formato
+RPY.
+
+Nel proseguio del documento, i messaggi inviati dal programma Alma3d al programma 
+canopenshell saranno indicati nel seguente modo:
+
+    >>>> <messaggio da Alma3d a alma3d_canopenshell>
+
+quelli inviati dal programma Alma3d al client tcp:
+
+    <tcp< <messaggio da Alma3d a client tcp>
+
+quelli inviati al programma Alma3d dal client tcp:
+
+    >tcp> <messaggio da client tcp a Alma3d>
+
+infine, le informazioni inviate sul secondo canale di comunicazione:
+
+    %tcp% <informazioni stato tripode>
+
+# 2. Ricerca dell'indirizzo del tripode
+========================================
+
+Un metodo per trovare l'ip consiste nel richidere la risoluzione
 inversa al server WINS del computer SPINITALIA_ALMA3D.
 
 
-3. Invio di una simulazione
-===========================
+# 3. Invio di una simulazione
+==============================
 
 Per prima cosa occorre preparare un file in formato csv, con le righe
 organizzate cosi:
@@ -71,17 +123,16 @@ indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la
 sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione
 del comando.
 
-Una volta pronto il file bisogna calcolare l'hash MD5(rif. 1) dello stesso,
-tramite ad esempio il programma md5summer (rif. 2). Il nome del file non
-riveste particolare importanza, dal momento che il sistema distingue le
-simulazioni dall'hash md5.
-
-Per inviare un file della simulazione, basta accedere alla directory
-condivisa \\SPINITALIA-ALMA3D\simulazioni e salvarlo al suo interno.
+Per memorizzare un file della simulazione all'interno del sistema, basta 
+accedere alla directory condivisa \\SPINITALIA-ALMA3D\simulazioni e 
+salvarlo al suo interno.
 
 
-4. Determinazione della posizione del tripode
-=============================================
+# 4. Determinazione della posizione del tripode
+================================================
+
+## 4.1. Determinazione delle posizioni dal programma alma3d_canopenshell
+========================================================================
 
 Il programma alma3d_canopenshell apre una pipe all'avvio, che si trova nella
 directory /tmp e ha nome fake_alma_3d_spinitalia_pos_stream_pipe se in
@@ -91,47 +142,62 @@ funzionamento reale.
 Una volta aperta fornisce le seguenti informazioni secondo il seguente
 formato:
 
-  @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS6 T9 C0
+  % @M119 S0 @M120 S0 @M121 S0 @M122 S0 AS6 T9 C0
 
 Le informazioni fornite possiedono la seguente notazione:
 
-  (@M)   Indirizzo motore:           @M119 ... @M122
-  (S)    Step del motore:          -320000 ... 320000 (+-2^31)
-  (AS)   Alma status: stato del tripode (vedi appendice B)
-  (T)    Tempo:                          0 ... 2^32 ms
-  (C)    Progresso analisi/simulazione:  0 ... 100%
+  Sigla | Descrizione                        | Range valori
+  ------|------------------------------------|------------------
+  (@M)  | Indirizzo motore:                  | 119 ... 122
+  (S)   | Step del motore:                   | -320000 ... 320000 (+-2^31)
+  (AS)  | Alma status: stato del tripode     | (vedi appendice B)
+  (T)   | Periodo di invio dei messaggi [ms] | 0.00 ... 999.99 (tipico 10.00)
+  (C)   | Progresso analisi/simulazione [%]  | 0 ... 100
 
-Il motore viene identificato come @M<indirizzo>, possiede 8000 step in un
-giro, ed in ogni giro si eleva di 10mm. Lo zero corrisponde ad un altezza
-di 400mm più e l'escurione totale ad 800mm. La distanza centro sfera centro
-cerniera dei pistoni e' di 1285mm.
+Esempio:
 
-Il sistema trasforma le altezze dei pistoni in angoli R, P e Y.
+  % @M119 S0 @M120 S100 @M121 S1234 @M122 S320000 AS6 T9.98 C0
+
+
+I motori identificati come @M120...122 comandano i tre pistoni verticali, 
+possiedono 8000 step in un giro, ed in ogni giro si elevano di 10mm. Lo 
+zero corrisponde ad un altezza di 400mm più e l'escurione totale ad 800mm.
+La distanza centro sfera centro cerniera dei pistoni e' di 1285mm.
+Il motore identificato come @M119 comanda la rotazione del piatto, possiede
+8000 step in un giro e la movimentazione passa attraverso un riduttore da
+1:115. 
+
+## 4.2. Determinazione delle posizioni dal programma Alma3d
+========================================================================
+Il sistema legge le informazioni sulla posizione fornite da alma3d_canopenshell
+in step motore, le trasforma le altezze dei pistoni e poi in angoli R, P e Y.
 
 Connettendosi alla porta 10001 del tripode si puo' ricevere la posizione
 dello stesso, che viene trasmessa come un flusso continuo di coordinate in
 questa forma:
 
-  R12.321;P-2.23;Y0;AS0;T10;C0;avvio simulazione 33c995835f28604045b1256f645c9195
-  R12.321;P-2.23;Y0;AS0;T10;C0
+  %tcp% R12.321;P-2.23;Y0;AS0;T10;C0
+  %tcp% R12.321;P-2.23;Y0;AS0;T10;C0
 
-Il tempo, in questo caso, rappresenta i ms intercorsi tra un'informazione e
-l'altra. La simulazione viene identificata con l'hash md5. Gli angoli ed il
-tempo sono espressi secondo la seguente notazione:
+Il tempo, come nel caso di alma3d_canopenshell, rappresenta i ms intercorsi tra 
+un'informazione e l'altra. Gli angoli ed il tempo sono espressi secondo la 
+seguente notazione:
 
-  (R)  Roll:        -45.00 ... +45.00 gradi
-  (P)  Pitch:       -45.00 ... +45.00 degree
-  (Y)  Yaw:           0.00 ... 360.00 degree
-  (AS) Alma status: stato del tripode (vedi appendice B)
-  (T)  Time:             0 ... 2^32 ms
-  (C)  Progress:         0 ... 100%
+  Sigla | Descrizione       | Range valori
+  ------|-------------------|------------------
+  (R)   | Roll [gradi]      | -45.00 ... +45.00
+  (P)   | Pitch [gradi]     | -45.00 ... +45.00
+  (Y)   | Yaw [gradi]       | 0.00 ... 360.00
+  (AS)  | Stato del tripode | (vedi appendice B)
+  (T)   | Time [ms]         | 0.00 ... 999.99
+  (C)   | Progress[%]       | 0 ... 100
 
 Il tempo si intende come quello impiegato a raggiungere la posizione
 indicata, e viene espresso in ms.
 
 
-5. Operazioni con il tripode
-============================
+#5. Operazioni con il tripode
+=============================
 
 Il controllo del Tripode Spinitalia Alma 3d avviene tramite procotollo TCP
 sulla porta 10002.
@@ -143,66 +209,121 @@ Le seguenti affermazioni circa il protocollo sono sempre valide:
 
     - I comandi restituiscono se a buon fine:
 
-        OK <cmd>
+        se alma3d_canopenshell:
+        <<<< OK <cmd>
+
+        se Alma3d:
+        <tcp< OK <cmd>
 
     - I comandi restituiscono se in errore:
 
-        CERR <cmd> <num>: <descr>
+        se alma3d_canopenshell:
+        <<<< CERR <cmd> <num>: <descr>
+
+        se Alma3d:
+        <tcp< CERR <cmd> <num>: <descr>
 
     - Esistono errori non causati dall'esecuzione di un comando. In
       tal caso puo' essere restituito un errore asincrono oltre alla
       risposta normale al comando indicata nei punti precedenti:
 
-        AERR <num>: <descr>
+        se alma3d_canopenshell:
+        <<<< AERR <num>: <descr>
 
-Una volta scoperto l'indirizzo IP, bisogna innanzitutto fornire le
-credenziali di accesso al sistema, tramite il comando LGN. A seguito del
-riconoscimento dell'utente è possibile interagire inviando gli altri
-comandi. La lista completa e' di seguito riportata:
+        se Alma3d:
+        <tcp< AERR <num>: <descr>
 
-		LGN:   Accesso al sistema
-    CT<x>: Avvio della procedura x
-    EM<x>: Avvio del comando di emergenza x
-    PR<x>: Lettura o scrittura del parametro x
+I comandi sono codificati in modo che siano raggruppati in famiglie funzionali:
 
+    Comando | Descrizione
+    --------|------------------------------------------------
+    LGN     | Accesso al sistema (LoGiN)
+    CT<x>   | Avvio della procedura x (Comando Tripode)
+    EM<x>   | Avvio del comando di emergenza x (EMergenza)
+    PR<x>   | Lettura o scrittura del parametro x (PaRametro)
+
+##5.1 Differenze tra i comandi Alma3d e quelli alma3d_canopenshell
+===================================================================
+Anche se il formato tra i comandi Alma3d e alma3d_canopenshell è simile, le due 
+implementazioni possono presentare parametri diversi. La spiegazione di tali 
+differenze risiede nel fatto che il primo implementa delle procedure
+specifiche per l'applicazione, mentre il secondo rimane ad un livello di astrazione
+più alto.
+
+Di seguito vengono elencate le corrispondenze tra i comandi Alma3d e alma3d_canopenshell,
+rimandando più avanti una descrizione più dettagliata.
+
+  Alma3d                  | alma3d_canopenshell
+  ------------------------|---------------------
+   LGN                    |  -
+  ------------------------|-------------------------------
+   CT0 [Waa]              | CT0 M4
+                          | [PR5 M120 O60FB S008 T32s xx]
+                          | [PR5 M121 O60FB S008 T32s xx]
+                          | [PR5 M121 O60FB S008 T32s xx]
+   CT1 Raa Pbb Ycc Vdd    | CT1 M120 Pxx VMyy AMzz 0
+                          | CT1 M121 Pxx VMyy AMzz 0
+                          | CT1 M122 Pxx VMyy AMzz 1
+   CT2 P1                 | CT2 P1
+   CT2 P2                 | CT2 P1
+   CT2 P3                 | CT2 P3
+   CT2 P4                 | CT2 P4
+   CT3 <nome file>        | -
+   CT4                    | CT4
+   CT5                    | CT5
+   CT6                    | CT6
+  ------------------------|---------------------------------
+   EM1                    | EM1
+   EM2                    | EM2
+  ------------------------|---------------------------------
+   PR1                    | -
+   PR2                    | -
+   PR3 A[R|P|Y] Lxx Uyy   | -
+   PR4 xxx yyy            | -
+   PR5 Mxx Oyy Szz T8u ww | PR5 Mxx Oyy Szz T8u ww
+   PR6 xx yy              | -
+
+##5.2 Descrizione comandi Alma3d
+================================
 Qui di seguito viene riportato l'elenco completo le procedure implementate:
 
-		- LGN <user> <password>
+    - LGN <user> <password>
 
-	        Accede al sistema tramite le credenziali fornite. Il nome utente
-          e' fisso, 'alma_user', mentre la password di default e'
+        Accede al sistema tramite le credenziali fornite. Il nome utente
+        e' fisso, 'alma_user', mentre la password di default e'
           'spinitalia'.
-					Per l'accesso come amministratore in caso di manutenzione, basta
-          loggarsi come 'alma3d_admin' e password da decidere.
+        Per l'accesso come amministratore in caso di manutenzione, basta
+        loggarsi come 'alma3d_admin' e password da decidere.
 
-          In caso di successo viene inviata la stringa:
+        In caso di successo viene inviata la stringa:
 
-						OK LGN
+          OK LGN
 
-					In caso di errore:
+        In caso di errore:
 
-            CERR LGN 0: Wrong password
+          CERR LGN 0: Wrong password
 
-    - CT0 M4  Avvia la procedura di inizializzazione dei 4 motori, che
-              restituisce la loro lista in ordine libero di risposta,
-              secondo il seguente formato:
+    - CT0 M4
+        Avvia la procedura di inizializzazione dei 4 motori, che
+        restituisce la loro lista in ordine libero di risposta,
+        secondo il seguente formato:
 
-                @M A121      ( non disponibile all'esterno )
-                @M A52       ( non disponibile all'esterno )
-                @M A12       ( non disponibile all'esterno )
-                @M A43       ( non disponibile all'esterno )
-                OK CT0
+          @M A121      ( non disponibile all'esterno )
+          @M A52       ( non disponibile all'esterno )
+          @M A12       ( non disponibile all'esterno )
+          @M A43       ( non disponibile all'esterno )
+          OK CT0
 
-              se tutti i motori sono presenti, altrimenti:
+        se tutti i motori sono presenti, altrimenti:
 
-                CERR CT0 0: Motori dichiarati non trovati
+          CERR CT0 0: Motori dichiarati non trovati
 
-              Devo mandare
+        Devo mandare
 
-                60FB 008 Signed 32 bit
-                PR5 M120 O60FB S008 T32s 64F
-                PR5 M121 O60FB S008 T32s 64F
-                PR5 M122 O60FB S008 T32s 64F
+          60FB 008 Signed 32 bit
+          PR5 M120 O60FB S008 T32s 64F
+          PR5 M121 O60FB S008 T32s 64F
+          PR5 M122 O60FB S008 T32s 64F
 
           Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
           con un 8bit unsigned ( <8/16/32><s/u> )
@@ -250,6 +371,16 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
     - CT2 P2
 
           Sposta il sistema nella posizione di home.
+
+          Una volta conclusa la procedura Devo mandare
+
+          60FB 008 Signed 32 bit
+          PR5 M120 O60FB S008 T32s 64F
+          PR5 M121 O60FB S008 T32s 64F
+          PR5 M122 O60FB S008 T32s 64F
+
+          Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
+          con un 8bit unsigned ( <8/16/32><s/u> )
 
     - CT2 P3
 
@@ -379,7 +510,17 @@ Sono implementati i seguenti parametri:
           Richiede l'MD5SUM dell'ultima simulazione convertita
 
 
-6. Gestione degli errori asincroni
+##5.1 La conversione della simulazione
+======================================
+
+#6. Inizializzazione del sistema Alma3d
+=======================================
+Una volta scoperto l'indirizzo IP, bisogna innanzitutto fornire le
+credenziali di accesso al sistema, tramite il comando LGN. A seguito del
+riconoscimento dell'utente è possibile interagire inviando gli altri
+comandi.
+
+7. Gestione degli errori asincroni
 ==================================
 
   Qualora si verificasse un errore durante il funzionamento del sistema, le
@@ -393,7 +534,7 @@ Sono implementati i seguenti parametri:
   Per conoscere lo stato del sistema e' possibile in ogni momento inviare il
   comando PR1.
 
-6. Processi
+8. Processi
 ===========
 
   - TesInterface: Permette l'accesso al sistema dall'esterno. Contiene il
@@ -409,7 +550,7 @@ Sono implementati i seguenti parametri:
     avviando e arrestando la simulazione.
 
 
-7. Funzionalita da implementare
+9. Funzionalita da implementare
 ===============================
 
   [Stati obbligatori]
@@ -445,7 +586,7 @@ Sono implementati i seguenti parametri:
   - TesIntf ha la posizione dall'homing configurata per giunti
   - USB-AUTOMOUNT deve eseguire l'upgrade del firmware e del kernel
 
-8. Unittest
+10. Unittest
 ===========
 
   - Ricezione del file
