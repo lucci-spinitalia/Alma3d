@@ -57,13 +57,12 @@ class Tripod():
         # Inizializza le strutture
         self.motorsAddress = []
         self.motorPos = {'120': 0L, '121': 0L, '122': 0L, '119': 0L}
-        self.posTime = 0
+        self.posTime = 0.0
         self.OpProgress = 0
         self.isCentered = False
         self.isImporting = False
         self.currentLine = 0
         self.mex_counter = 0L
-        self.posTime = 0
         self.almaControlProtocol = None
         self.isReading = False
 
@@ -72,8 +71,15 @@ class Tripod():
         # Indirizzi dei motori
         self.motor_address_list = ['119', '120', '121', '122']
 
+        # Calcolo della velocità
+        self.old_roll = 0.0
+        self.old_pitch = 0.0
+        self.old_yaw = 0.0
+
         # Compila i cercatori
-        self.find_motor_position = re.compile('@M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) AS([^ ]*) T([^ ]*) C([^ ]*)')
+        self.find_motor_position = re.compile(
+            '@M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) @M([^ ]*) S([^ ]*) AS([^ ]*) T([^ ]*) C([^ ]*)'
+        )
 
         # Per prima cosa aggiorno lo stato
         self.update_output()
@@ -112,14 +118,34 @@ class Tripod():
         # usePTY serve ad evitare l'ECHO
         # INFO: uso stdbuf per evitare il buffering dell'output se non in terminale
         if self.config.isFake:
-            reactor.spawnProcess(self.canopen, "/usr/bin/stdbuf", args=["stdbuf", "--output=L", "--input=0",
-                "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
-                "fake",
-                "load#libcanfestival_can_socket.so,0,1M,8"], env=os.environ, usePTY=False)
+            reactor.spawnProcess(
+                self.canopen,
+                "/usr/bin/stdbuf",
+                args=[
+                    "stdbuf",
+                    "--output=L",
+                    "--input=0",
+                    "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
+                    "fake",
+                    "load#libcanfestival_can_socket.so,0,1M,8"
+                ],
+                env=os.environ,
+                usePTY=False
+            )
         else:
-            reactor.spawnProcess(self.canopen, "/usr/bin/stdbuf", args=["stdbuf", "--output=L", "--input=0",
-                "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
-                "load#libcanfestival_can_socket.so,0,1M,8"], env=os.environ, usePTY=False)
+            reactor.spawnProcess(
+                self.canopen,
+                "/usr/bin/stdbuf",
+                args=[
+                    "stdbuf",
+                    "--output=L",
+                    "--input=0",
+                    "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
+                    "load#libcanfestival_can_socket.so,0,1M,8"
+                ],
+                env=os.environ,
+                usePTY=False
+            )
 
     def update_import_progress(self, value, line_num):
 
@@ -144,7 +170,7 @@ class Tripod():
         isCentered = False
         OpProgress = 0
         mex_counter = 0L
-        posTime = 0
+        posTime = 0.0
 
         while self.isReading:
             if isPipeOpen:
@@ -166,13 +192,17 @@ class Tripod():
                             if not isCentered:
                                 if canStatus == '6':
                                     isCentered = True
-                        posTime = canopen_status.group(10)
+                        posTime = float(canopen_status.group(10))
                         OpProgress = canopen_status.group(11)
                         mex_counter = mex_counter + 1
 
-                    reactor.callFromThread(self.update_var_from_canopen, motorPos, isAsyncError, canStatus, isCentered, posTime, OpProgress, mex_counter)
+                    reactor.callFromThread(
+                        self.update_var_from_canopen, motorPos, isAsyncError, canStatus, isCentered,
+                        posTime, OpProgress, mex_counter
+                    )
 
                 except Exception, e:
+
                     # Potrebbe essere semplicemente non disponibile un dato!
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     logging.error("Disabling Alarm, device not found! (%s)" % str(e))
@@ -189,7 +219,9 @@ class Tripod():
                         isPipeOpen = True
                         continue
                     sleep(0.5)
+
                 except:
+
                     pass
 
     def update_var_from_canopen(self, motorPos, isAsyncError, canStatus, isCentered, posTime, OpProgress, mex_counter):
@@ -204,7 +236,7 @@ class Tripod():
         self.update_output()
         if self.almaPositionProtocol is not None:
             self.mex_counter = mex_counter
-            self.almaPositionProtocol.sendPosition()
+            self.almaPositionProtocol.send_position()
 
     def goto_em2(self):
 
@@ -216,12 +248,13 @@ class Tripod():
             self.almaControlProtocol.sendResponse(data)
 
             # Se e' stato ricevuto l'ok sullo spegnimento, spengo il reattore
-            #if data[:7] == "OK CT6":
+            # if data[:7] == "OK CT6":
 
         except:
             pass
 
-    def traslate_status(self, status):
+    @staticmethod
+    def translate_status(status):
 
         if status == '0':
             return 'ERRORE'
@@ -277,7 +310,7 @@ class Tripod():
         # 8 - SIMULAZIONE      X       X      -       X       X       T
         # 9 - FERMO            X       X      -       -       X       T
         # A - CENTRAGGIO       X       X      -       X       X       T
-        # B - RILASCIATO       X       -      X       X       -       0     * Il recinto si disattiva da quando via TCP compare EM1
+        # B - RILASCIATO       X       -      X       X       -       0     * Il recinto se da TCP compare EM1
         # C - NON_AUTENTICATO  X       X      -       -       X       T
 
         # Thread safe!
@@ -367,7 +400,7 @@ class Tripod():
                 motor_front,
                 motor_rear_right,
                 motor_rear_left,
-                self.traslate_status(self.canStatus),
+                self.translate_status(self.canStatus),
                 self.canStatus,
                 self.posTime, self.OpProgress))
 

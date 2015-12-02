@@ -5,7 +5,7 @@ class Config():
 
     def __init__(self):
 
-        self.isFake = False
+        self.isFake = True
         self.isLoginRequired = True
         self.FENCE_PIN = 12
         self.INSTALL_PATH = "/opt/spinitalia/service/"

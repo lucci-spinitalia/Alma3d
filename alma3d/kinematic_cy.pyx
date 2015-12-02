@@ -401,7 +401,7 @@ cpdef find_plane_angles(motor_positions):
     pitch = pitch_r / M_PI * 180.0
     yaw = yaw_r / M_PI * 180.0
 
-cpdef angles_to_avionics(rx_zyx, ry_zyx, rz_zyx):
+cpdef angles_to_avionics(zyx3, zyx2, zyx1):
     """Converte una terna rotazionale da interna in avionica
 
     Voglio convertire una termina angolare:
@@ -437,9 +437,9 @@ cpdef angles_to_avionics(rx_zyx, ry_zyx, rz_zyx):
         double rz_yxz
 
     # Ora calcolo i termini in funzione degli angoli forniti
-    s1c2_yxz = (sin(rz_zyx) * sin(rx_zyx)) + (cos(rz_zyx)* sin(ry_zyx) * cos(rx_zyx))
-    s2_yxz = (cos(rz_zyx) * sin(rx_zyx)) - (sin(rz_zyx) * sin(ry_zyx) * cos(rx_zyx))
-    c2s3_yxz = sin(rz_zyx) * cos(ry_zyx)
+    s1c2_yxz = (sin(zyx1) * sin(zyx3)) + (cos(zyx1)* sin(zyx2) * cos(zyx3))
+    s2_yxz = (cos(zyx1) * sin(zyx3)) - (sin(zyx1) * sin(zyx2) * cos(zyx3))
+    c2s3_yxz = sin(zyx1) * cos(zyx2)
 
     # Ora trovo gli angoli
     rx_yxz_r = asin(s2_yxz)
@@ -487,12 +487,12 @@ cpdef angles_to_internals(rx_yxz, ry_yxz, rz_yxz):
         double s2_zyx
         double s1c2_zyx
         double c2_zyx
-        double rx_zyx_r
-        double ry_zyx_r
-        double rz_zyx_r
-        double rx_zyx
-        double ry_zyx
-        double rz_zyx
+        double zyx3_r
+        double zyx2_r
+        double zyx1_r
+        double zyx3
+        double zyx2
+        double zyx1
 
     # Converto gli angoli in ingresso in gradi
     rx_yxz_r = (rx_yxz / 180.0) * M_PI
@@ -505,15 +505,15 @@ cpdef angles_to_internals(rx_yxz, ry_yxz, rz_yxz):
     s1c2_zyx = cos(rx_yxz_r) * sin(rz_yxz_r)
 
     # Ora trovo gli angoli
-    ry_zyx_r = asin(s2_zyx)
-    c2_zyx = cos(ry_zyx_r)
-    rz_zyx_r = asin(s1c2_zyx / c2_zyx)
-    rx_zyx_r = asin(c2s3_zyx / c2_zyx)
-    rx_zyx = (rx_zyx_r / M_PI) * 180.0
-    ry_zyx = (ry_zyx_r / M_PI) * 180.0
-    rz_zyx = (rz_zyx_r / M_PI) * 180.0
+    zyx2_r = asin(s2_zyx)
+    c2_zyx = cos(zyx2_r)
+    zyx1_r = asin(s1c2_zyx / c2_zyx)
+    zyx3_r = asin(c2s3_zyx / c2_zyx)
+    zyx3 = (zyx3_r / M_PI) * 180.0
+    zyx2 = (zyx2_r / M_PI) * 180.0
+    zyx1 = (zyx1_r / M_PI) * 180.0
 
-    return [rx_zyx, ry_zyx, rz_zyx, rx_zyx_r, ry_zyx_r, rz_zyx_r]
+    return [zyx3, zyx2, zyx1, zyx3_r, zyx2_r, zyx1_r]
 
 def search_angles(motor_positions):
 

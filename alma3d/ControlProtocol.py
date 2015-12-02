@@ -55,7 +55,7 @@ class ControlProtocol(LineReceiver):
                                               'S([^ ]*) AS([^ ]*) T([^ ]*) C([^ ]*)')
         self.find_motor_address = re.compile('@M A([\d]*)')
         self.find_end_position = re.compile('CT1 R([+-]?(?:\d+\.\d*|\.\d+|\d+)) P([+-]?(?:\d+\.\d*|\.\d+|\d+)) '
-                                            'Y([+-]?(?:\d+\.\d*|\.\d+|\d+))')
+                                            'Y([+-]?(?:\d+\.\d*|\.\d+|\d+)) V(\d+)')
         self.find_ip = re.compile('PR4 ([^ ]*) ([^ ]*) ([^ ]*)')
 
     def connectionMade(self):
@@ -91,10 +91,11 @@ class ControlProtocol(LineReceiver):
         :type self: object
         """
         
-        logging.info("From TCP Client '%s' (status '%s' is '%s')" % (line,
-                                                                     self.tripod.canStatus,
-                                                                     self.tripod.traslate_status(self.tripod.canStatus))
-                     )
+        logging.info("From TCP Client '%s' (status '%s' is '%s')" % (
+            line,
+            self.tripod.canStatus,
+            self.tripod.translate_status(self.tripod.canStatus))
+        )
 
         # Se non si e' loggato qualcuno, non accetto alcun comando
         if not self.tripod.userLoggedIn:        
@@ -154,8 +155,12 @@ class ControlProtocol(LineReceiver):
                         # CT1 M121 P1231232 VM123 AM124
                         # CT1 M122 P1231232 VM123 AM124
                         self.tripod.canopen.is_sending_position = 1
-                        VT_R = 100000
-                        AT_R = 200
+                        self.tripod.canopen.relative_speed = 0.1
+                        if matches.group(4).isNumeric():
+                            if 0 < int(matches.group(4)) < 100:
+                                self.tripod.canopen.relative_speed = matches.group(4)
+                        VT_R = int(self.tripod.canopen.VT_R / 100.0 * self.tripod.canopen.relative_speed)
+                        AT_R = int(self.tripod.canopen.AT_R / 100.0 * self.tripod.canopen.relative_speed)
                         line = "CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], VT_R,
                                                                AT_R)
                         self.tripod.canopen.sendCommand(line, "self")
@@ -181,6 +186,17 @@ class ControlProtocol(LineReceiver):
 
                     self.sendLine("CERR CT2 P1: Stato del sistema non valido")
                     return
+
+            # Se viene richiesto l'homing carico i file necessari predefiniti
+            elif line.rstrip().upper() == 'CT2 P4':
+
+                self.tripod.canopen.is_lowering = 1
+                line = "CT1 M119 P{} VM{} AM{}".format(
+                    0,
+                    int(self.tripod.canopen.VT_R / 10),
+                    int(self.tripod.canopen.AT_R / 10)
+                )
+                self.tripod.canopen.sendCommand(line, "self")
 
             # Se viene richiesta l'analisi di un file, lo analizzo
             elif line.rstrip().upper()[:3] == 'CT3':

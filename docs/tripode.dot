@@ -1,0 +1,33 @@
+digraph canopenshell_machine {
+	rankdir=LR;
+	node [shape = doublecircle]; ACCESO
+	node [shape = circle, style = filled]; SIMULAZIONE RICERCA_CENTRO CENTRAGGIO
+	node [shape = circle, style = dashed]; TUTTI
+	node [shape = circle, style = solid, regular= 1];
+	ACCESO -> INIZIALIZZATO [ label = "CT0" ];
+	ACCESO -> SPENTO [ label = "CT6" ];
+	INIZIALIZZATO -> RICERCA_CENTRO [ label = "CT2 P1" ];
+	INIZIALIZZATO -> RILASCIATO [ label = "CT2 P3" ];
+	INIZIALIZZATO -> SPENTO [ label = "CT6" ];
+	RICERCA_CENTRO -> CENTRATO [ label = "fine" ];
+	CENTRATO -> SIMULAZIONE [ label = "CT4" ];
+	CENTRATO -> RILASCIATO [ label = "CT2 P3" ];
+	CENTRATO -> SPENTO [ label = "CT6" ];
+	SIMULAZIONE -> FERMO [ label = "fine" ];
+	SIMULAZIONE -> FERMO [ label = "CT5" ];
+	FERMO -> CENTRAGGIO [ label = "CT2 P2" ];
+	FERMO -> RILASCIATO [ label = "CT2 P3" ];
+	FERMO -> SPENTO [ label = "CT6" ];
+	CENTRAGGIO -> CENTRATO [ label = "fine" ];
+	RILASCIATO -> LIBERO [ label = "CT2 P4" ];
+	RILASCIATO -> FERMO [ label = "CT5 && centrato" ];
+	RILASCIATO -> INIZIALIZZATO [ label = "CT0 && !centrato" ];
+	RILASCIATO -> SPENTO [ label = "CT6" ];
+	LIBERO -> FERMO [ label = "CT5 && centrato" ];
+	LIBERO -> INIZIALIZZATO [ label = "CT0 && !centrato" ];
+	LIBERO -> SPENTO [ label = "CT6" ];
+	TUTTI -> EMERGENZA [ label = "EM2" ];
+  TUTTI -> EMERGENZA [ label = "intrusione" ];
+	EMERGENZA -> INIZIALIZZATO [ label = "CT0" ];
+}
+

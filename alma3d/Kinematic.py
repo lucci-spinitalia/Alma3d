@@ -12,9 +12,8 @@ import os
 import math
 import kinematic_cy
 import shutil
+import ConfigParser
 
-M_PI = 3.14159265358979323846
-M_TO_RAD = 0.0174532925199432957692
 
 class Kinematic():
     """Implementazione della cinematica diretta del Tripode
@@ -36,93 +35,78 @@ class Kinematic():
                 .           (3,121)          |_|    v       |_|
                 .                             O---------+----o
 
-    Il tripode, per come è stato costruito, funziona con la terna di Tait-Bryan Z1Y2X3:
+    L'orientamento dei motori è il seguente, movimenti con passi di encoder maggiori di zero abbassano i pistoni e fanno
+    girare la tavola insenso antiorario.
 
-                     |  c1c2    c1s2s3 - c3s1    s1s3 + c1c3s2  |
-            Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |
-                     |  -s2         c2s3             c2c3       |
+    Il tripode, per come è stato costruito, funziona con la terna di Tait-Bryan Z1Y2X3, visto che l'ultima rotazione
+    che devo applicare è lo yaw:
 
-    La convenzione avionica è invece la X1Y2Z3, ovvero:
+                     |  c1c2    c1s2s3 - c3s1    s1s3 + c1c3s2  |  1 = Rz = Yaw
+            Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |  2 = Ry = Pitch
+                     |  -s2         c2s3             c2c3       |  3 = Rx = Roll
 
-                     |      c2c3              c2s3         s2   |
-            X1Y2Z3 = |  s1s2c3 - c1s3    c1c3 + s1s2s3   -c2s1  |
-                     |  c1s2c3 - s1s3    c1s2c3 + s2c3    c1c2  |
+    La convenzione avionica utilizzata è invece la X1Y2Z3, ovvero:
 
-    Dal momento che gli angoli vengono definiti dalla sequenza scelta di operazioni, e che il roll è in pratica
-    la rotazione attorno all'asse X SE E SOLO SE la sequenza di rotazioni è x1y2z3, ho deciso di nominame gli
-    angoli come r1_xyz, da non confondere con r1_zyx.
+                     |      c2c3             -c2s3         s2   |  1 = Rx = Roll
+            X1Y2Z3 = |  c1s3 + c3s1s2    c1c3 - s1s2s3   -c2s1  |  2 = Ry = Pitch
+                     |  s1s3 - c1c3s2    c3s1 + c1s2s3    c1c2  |  3 = Rz = Yaw
 
-    Per caricare il file di simulazione, e per inviare le posizioni, sono utilizzate due
-    funzioni di conversione che passano da una notazione all'altra.
+    Dal momento che gli angoli vengono definiti dalla sequenza scelta di operazioni, e che il roll è la rotazione
+    attorno all'asse X, il pitch la rotazione attorno all'asse Y, lo yaw attorno allo Z, ho deciso di nominame gli
+    angoli come xyz1 (roll), xyz2 (pitch), xyz3 (yaw), zyx1 (yaw), zyx2 (pitch) e zyx3 (roll).
 
-    Attenzione! A seconda della terna selezionata, l'angolo 1 è diverso dall'angolo 1 di
-    un'altra terna.
+    Per caricare il file di simulazione, e per inviare le posizioni, sono utilizzate due funzioni di conversione che
+    passano da una notazione all'altra.
 
-    Qualche nota sulla convenzione avionica; gli assi sono orientati con la mano destra,
-    il 1 X in avanti, il 2 Y verso destra, il 3 Z verso il basso.
+    Attenzione! A seconda della terna selezionata, l'angolo 1 è diverso dall'angolo 1 di un'altra terna.
 
-    Gli angoli sono orientati con la regola della mano destra, in roll o rollio la rotazione
-    rispetto al primo asse (X), il pitch o beccheggio attorno al secondo asse (Y), lo yaw o
-    l'imbardata attorno l'asse Z.
+    Gli assi sono orientati con la mano destra, il 1 X in avanti, il 2 Y verso destra, il 3 Z verso il basso.
 
-    L'ordine di rotazioni in avionica sia Yaw, Pitch, Roll, quindi RzRyRx, ovvero XYZ.
-
-    Se l'ordine di rotazione risulta Roll->Pitch->Yaw (Rx*Ry*Rz)
-
-        Rx: rotation about X-axis, roll
-        Ry: rotation about Y-axis, pitch
-        Rz: rotation about Z-axis, yaw(heading)
-
-            pitch         roll         yaw
-             Ry            Rx          Rz
-         | Cy  0 Sy|   |1  0   0|   |Cz -Sz 0|   | CyCz + SySxSz    -CySz + SxSyCz    SyCx |
-         |  0  1  0| * |0 Cx -Sx| * |Sz  Cz 0| = |     CxSz              CxCz         -Sx  |
-         |-Sy  0 Cy|   |0 Sx  Cx|   | 0   0 1|   | -SyCz + CySxSz   SySz + CySxCz     CyCx |
+    Tutte le distanze sono in metri, tutti gli angoli in radianti
 
     """
 
-    # Inizializzo il sistema
-    # Angoli in gradi per le definizioni
-    # Angoli in radianti nei calcoli
-    #   Distanze in metri
-
-    vmax = 40               # Massima velocita' angolare in gradi/sec
-    amax = 40               # Massima accellerazione angolare in gradi/sec^2
-
-    alpha_limit = 10        # Massima escursione dei pistoni in +/- 10 gradi
-
-    base_radius = 0.705     # Raggio dei centri dei tre pistoni
-    real_height = 1.685     # Distanza tre i centri cerniera-sfera sullo 0 ( 400mm )
-
-    ke = 150                # Guadagno nella ricerca dell'angolo
-    err_limit = 0.00015     # Errore sotto il quale la soluzione si considera esatta ( 0,1mm )
-    cycle_limit = 3000      # Numero massimo di interazioni
-
-    step_per_turn = 8000    # Numero di step in un giro motore
-    mt_per_turn = 0.01      # Metri per giro motore
-    rot_reduction = 115  # Rapporto del riduttore del giunto rotazionale
-
-    max_lin_speed = 400     # Velocita' lineare massima in mm/s (40gradi/s su pitch e roll -> 585861 step/s -> 732)
-    max_rot_speed = 40      # Velocita' angolare massima in gradi/s
+    M_PI = 3.14159265358979323846
+    M_TO_RAD = 0.0174532925199432957692
 
     def __init__(self, tripod=None):
 
+        ini = ConfigParser.ConfigParser()
+        ini.read('/opt/spinitalia/service/config.ini')
+
+        # Legge il file di configurazione
+        self.base_radius = ini.getfloat('Dimensions', 'base_radius')
+        self.real_height = ini.getfloat('Dimensions', 'real_height')
+        self.vmax = ini.getint('Speed', 'vmax')
+        self.amax = ini.getint('Speed', 'amax')
+        self.max_lin_speed = ini.getint('Speed', 'max_lin_speed')
+        self.max_rot_speed = ini.getint('Speed', 'max_rot_speed')
+        self.alpha_limit = ini.getint('Kinematic', 'alpha_limit')
+        self.ke = ini.getint('Kinematic', 'ke')
+        self.err_limit = ini.getfloat('Kinematic', 'err_limit')
+        self.cycle_limit = ini.getint('Kinematic', 'cycle_limit')
+        self.step_per_turn = ini.getint('Motors', 'step_per_turn')
+        self.mt_per_turn = ini.getfloat('Motors', 'mt_per_turn')
+        self.rot_reduction = ini.getint('Motors', 'rot_reduction')
+
+        # Inizializza la cinematica citonica
         kinematic_cy.init()
 
+        # Copia il riferimento al padre
         self.tripod = tripod
 
         # Calcolo le costanti in radianti
-        self.vmax_r = self.vmax * M_TO_RAD
-        self.amax_r = self.amax * M_TO_RAD
-        self.alpha_limit_r = -self.alpha_limit * M_TO_RAD
+        self.vmax_r = self.vmax * Kinematic.M_TO_RAD
+        self.amax_r = self.amax * Kinematic.M_TO_RAD
+        self.alpha_limit_r = -self.alpha_limit * Kinematic.M_TO_RAD
 
         # Calcolo i fattori di conversione dei motori
         self.mt_to_step = self.step_per_turn / self.mt_per_turn
-        self.radians_to_step = self.step_per_turn * self.rot_reduction / (2 * M_PI)
+        self.radians_to_step = self.step_per_turn * self.rot_reduction / (2 * Kinematic.M_PI)
 
         # Calcola le velocita' massime
         self.max_lin_step_per_s = ((self.max_lin_speed / 1000.0) / self.mt_per_turn) * self.step_per_turn * 1.2
-        self.max_rot_step_per_s = (self.max_rot_speed * M_TO_RAD) * self.radians_to_step * 1.2
+        self.max_rot_step_per_s = (self.max_rot_speed * Kinematic.M_TO_RAD) * self.radians_to_step * 1.2
 
         # Inizializzo le posizioni delle basi dei pistoni
         self.base_length = self.base_radius * math.sqrt(3)
@@ -148,18 +132,18 @@ class Kinematic():
         self.cycles = 0
 
         # Output del risolutore
-        self.rx_zyx = 0.0
-        self.ry_zyx = 0.0
-        self.rz_zyx = 0.0
-        self.rx_zyx_r = 0.0
-        self.ry_zyx_r = 0.0
-        self.rz_zyx_r = 0.0
-        self.rx_xyz = 0.0
-        self.ry_xyz = 0.0
-        self.rz_xyz = 0.0
-        self.rx_xyz_r = 0.0
-        self.ry_xyz_r = 0.0
-        self.rz_xyz_r = 0.0
+        self.zyx3 = 0.0
+        self.zyx2 = 0.0
+        self.zyx1 = 0.0
+        self.zyx3_r = 0.0
+        self.zyx2_r = 0.0
+        self.zyx1_r = 0.0
+        self.xyz1 = 0.0
+        self.xyz2 = 0.0
+        self.xyz3 = 0.0
+        self.xyz1_r = 0.0
+        self.xyz2_r = 0.0
+        self.xyz3_r = 0.0
 
         # Calcolo della cinematica inversa
         self.icycles = 0
@@ -192,7 +176,7 @@ class Kinematic():
         self.roof_vertex_x[0] = motor_positions[0] * math.sin(alphas[0])
         self.roof_vertex_z[1] = motor_positions[1] * math.cos(alphas[1])
         s2 = motor_positions[1] * math.sin(alphas[1])
-        self.roof_vertex_x[1] = self.base_point[1][0] - (s2 * 0.5)                   # sin 30° = 1/2
+        self.roof_vertex_x[1] = self.base_point[1][0] - (s2 * 0.5)                 # sin 30° = 1/2
         self.roof_vertex_y[1] = self.base_point[1][1] - (s2 * 0.8660254037844386)  # cos 30° = sqrt(3) / 2
 
         return math.sqrt(
@@ -208,9 +192,9 @@ class Kinematic():
         """
 
         self.roof_vertex_z[1] = motor_positions[1] * math.cos(alphas[1])
-        # s2 = motor_positions[1] * math.sin(alphas[1])
-        # self.roof_vertex_x[1] = self.base_point[1][0] - (s2 * 0.5)                 # sin 30° = 1/2
-        # self.roof_vertex_y[1] = self.base_point[1][1] - (s2 * 0.8660254037844386)  # cos 30° = sqrt(3) / 2
+        s2 = motor_positions[1] * math.sin(alphas[1])
+        self.roof_vertex_x[1] = self.base_point[1][0] - (s2 * 0.5)                 # sin 30° = 1/2
+        self.roof_vertex_y[1] = self.base_point[1][1] - (s2 * 0.8660254037844386)  # cos 30° = sqrt(3) / 2
 
         self.roof_vertex_z[2] = motor_positions[2] * math.cos(alphas[2])
         s3 = motor_positions[2] * math.sin(alphas[2])
@@ -233,9 +217,9 @@ class Kinematic():
         self.roof_vertex_x[0] = motor_positions[0] * math.sin(alphas[0])
         self.roof_vertex_z[2] = motor_positions[2] * math.cos(alphas[2])
 
-        #s3 = motor_positions[2] * math.sin(alphas[2])
-        #self.roof_vertex_x[2] = self.base_point[2][0] - (s3 / 2)  # sin 30° = 1/2
-        #self.roof_vertex_y[2] = self.base_point[2][1] + (s3 * 0.8660254037844386)  # cos 30° = sqrt(3) / 2
+        s3 = motor_positions[2] * math.sin(alphas[2])
+        self.roof_vertex_x[2] = self.base_point[2][0] - (s3 / 2)  # sin 30° = 1/2
+        self.roof_vertex_y[2] = self.base_point[2][1] + (s3 * 0.8660254037844386)  # cos 30° = sqrt(3) / 2
 
         return math.sqrt(
             ((self.roof_vertex_x[2] - self.roof_vertex_x[0]) ** 2) +
@@ -325,12 +309,11 @@ class Kinematic():
 
         # Incrementi degli angoli
         # TO_CHECK: perche' quattro? L'ultimo e' di backup?
-        step_alpha_base = 0.1 * M_TO_RAD
+        step_alpha_base = 0.1 * Kinematic.M_TO_RAD
         step_alpha = [step_alpha_base, step_alpha_base, step_alpha_base]
 
         # Numero di cicli eseguiti
         self.cycles = 0
-        n = 0
 
         # Calcolo la condizione iniziale
         d1 = self.distance_12(alpha, height)
@@ -345,17 +328,12 @@ class Kinematic():
         err[2] = d3 - self.base_length
         step_alpha[0] = err[2] * self.ke * step_alpha_base
 
-        # Ciclo per la variazione di alfa1
-        #for i in range(self.cycle_limit):
         i = 0
         while i < self.cycle_limit:
 
             i += 1
 
             # Incremento alfa1 ed azzero alfa2
-            #if is_0_median:
-            #    alpha[0] -= step_alpha[0]
-            #else:
             alpha[0] += step_alpha[0]
             alpha[1] = self.alpha_start[1]
 
@@ -365,7 +343,7 @@ class Kinematic():
 
                 j += 1
 
-                #self.next_iteration(alpha, step_alpha, i, j, n, err)
+                # self.next_iteration(alpha, step_alpha, i, j, n, err)
                 self.cycles += 1
 
                 if self.cycles > self.cycle_limit:
@@ -373,11 +351,7 @@ class Kinematic():
                     return False
 
                 # Incremento alfa1 ed azzero alfa2
-                #if is_1_median:
-                #    alpha[1] -= step_alpha[1]
-                #else:
                 alpha[1] += step_alpha[1]
-
 
                 # Se supero l'angolo limite
                 # Partendo da -10 ( -0.17 ), non devo superare 10 ( 0.17 )
@@ -404,16 +378,13 @@ class Kinematic():
 
                         n += 1
 
-                        #self.next_iteration(alpha, step_alpha, i, j, n, err)
+                        # self.next_iteration(alpha, step_alpha, i, j, n, err)
                         self.cycles += 1
 
                         if self.cycles > self.cycle_limit:
                             logging.error("Maximum number of cycles executed, no solution found!")
                             return False
 
-                        #if is_2_median:
-                        #    alpha[2] -= step_alpha[2]
-                        #else:
                         alpha[2] += step_alpha[2]
                         d2 = self.distance_23(alpha, height)
                         err[1] = d2 - self.base_length
@@ -430,7 +401,6 @@ class Kinematic():
 
                                 # Trovatas la soluzione
                                 self.alpha = list(alpha)
-                                #print self.cycles
                                 return True
 
                             # NEXT j!!!
@@ -502,70 +472,119 @@ class Kinematic():
         i24 = k16 / i23
         i25 = l17 / i23
         m19 = math.asin(i24)
-        self.rz_zyx_r = m19 + roof_motor_position
-        self.ry_zyx_r = math.asin(k17)
-        self.rx_zyx_r = math.asin(i25)
-        self.rx_zyx = self.rx_zyx_r / M_TO_RAD
-        self.ry_zyx = self.ry_zyx_r / M_TO_RAD
-        self.rz_zyx = self.rz_zyx_r / M_TO_RAD
-        angles = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
-        self.rx_xyz = angles[2]
-        self.ry_xyz = angles[0]
-        self.rz_xyz = angles[1]
-        self.rx_xyz_r = angles[5]
-        self.ry_xyz_r = angles[3]
-        self.rz_xyz_r = angles[4]
+        self.zyx1_r = m19 + roof_motor_position
+        self.zyx2_r = math.asin(k17)
+        self.zyx3_r = math.asin(i25)
+        self.zyx3 = self.zyx3_r / Kinematic.M_TO_RAD
+        self.zyx2 = self.zyx2_r / Kinematic.M_TO_RAD
+        self.zyx1 = self.zyx1_r / Kinematic.M_TO_RAD
+        angles = self.zyx_r_to_xyz(self.zyx3_r, self.zyx2_r, self.zyx1_r)
+        self.xyz1 = angles[2]
+        self.xyz2 = angles[0]
+        self.xyz3 = angles[1]
+        self.xyz1_r = angles[5]
+        self.xyz2_r = angles[3]
+        self.xyz3_r = angles[4]
 
-    def angles_to_avionics(self, rx_zyx, ry_zyx, rz_zyx):
+    @staticmethod
+    def zyx_r_to_xyz(zyx3_r, zyx2_r, zyx1_r):
         """Converte una terna rotazionale da interna in avionica
 
-        :param rx_zyx: Angolo di Roll in radianti secondo la terna interna
-        :param ry_zyx: Angolo di Pitch in radianti secondo la terna interna
-        :param rz_zyx: Angolo di Yaw in radianti secondo la terna interna
+        Per passare dalla notazione:
+
+                         |  c1c2    c1s2s3 - c3s1    s1s3 + c1c3s2  |  1 = Rz = Yaw
+                Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |  2 = Ry = Pitch
+                         |  -s2         c2s3             c2c3       |  3 = Rx = Roll
+
+        Alla notazione:
+
+                         |      c2c3             -c2s3         s2   |  1 = Rx = Roll
+                X1Y2Z3 = |  c1s3 + c3s1s2    c1c3 - s1s2s3   -c2s1  |  2 = Ry = Pitch
+                         |  s1s3 - c1c3s2    c3s1 + c1s2s3    c1c2  |  3 = Rz = Yaw
+
+        Procedo per ispezione, evitando acos.
+
+        Quindi trovo s2, -c2s1 e -c2s3 della seconda, partendo dalla prima.
+
+        :param zyx3_r: Angolo di Roll in radianti secondo la terna interna
+        :param zyx2_r: Angolo di Pitch in radianti secondo la terna interna
+        :param zyx1_r: Angolo di Yaw in radianti secondo la terna interna
         """
 
-        # Ora calcolo i termini in funzione degli angoli forniti
-        s1c2_xyz = -(math.cos(rx_zyx) * math.sin(rz_zyx) * math.sin(ry_zyx) - (math.cos(rz_zyx) * math.sin(rx_zyx)))
-        s2_xyz = (math.sin(rz_zyx) * math.sin(rx_zyx)) + (math.cos(rz_zyx) * math.cos(rx_zyx) * math.sin(ry_zyx))
-        c2s3_xyz = (math.cos(rz_zyx) * math.sin(ry_zyx) * math.sin(rx_zyx)) - (math.cos(rx_zyx) * math.sin(rz_zyx))
+        # Calcolo l'elemento 1:3 della prima matrice (s1s3 + c1c3s2)
+        s2_xyz = (math.sin(zyx1_r) * math.sin(zyx3_r)) + (math.cos(zyx1_r) * math.cos(zyx3_r) * math.sin(zyx2_r))
+
+        # Calcolo l'elemento 2:3 della prima matrice (c3s1s2 - c1s3)
+        minus_c2s1_xyz = (math.cos(zyx3_r) * math.sin(zyx1_r) * math.sin(zyx2_r)) - \
+                         (math.cos(zyx1_r) * math.sin(zyx3_r))
+
+        # Calcolo l'elemento 1:2 della prima matrice (c1s2s3 - c3s1)
+        minus_c2s3_xyz = (math.cos(zyx1_r) * math.sin(zyx2_r) * math.sin(zyx3_r)) - \
+                         (math.cos(zyx3_r) * math.sin(zyx1_r))
 
         # Ora trovo gli angoli
-        rx_xyz_r = math.asin(s2_xyz)
-        c2_xyz = math.cos(rx_xyz_r)
-        ry_xyz_r = math.asin(s1c2_xyz / c2_xyz)
-        rz_xyz_r = math.asin(c2s3_xyz / c2_xyz)
-        rx_xyz = rx_xyz_r / M_PI * 180.0
-        ry_xyz = ry_xyz_r / M_PI * 180.0
-        rz_xyz = rz_xyz_r / M_PI * 180.0
+        xyz1_r = math.asin(s2_xyz)
+        c2_xyz = math.cos(xyz1_r)
+        xyz2_r = math.asin(- minus_c2s1_xyz / c2_xyz)
+        xyz3_r = math.asin(- minus_c2s3_xyz / c2_xyz)
+        xyz1 = xyz1_r / Kinematic.M_PI * 180.0
+        xyz2 = xyz2_r / Kinematic.M_PI * 180.0
+        xyz3 = xyz3_r / Kinematic.M_PI * 180.0
 
-        return [rx_xyz, ry_xyz, rz_xyz, rx_xyz_r, ry_xyz_r, rz_xyz_r]
+        return [xyz1, xyz2, xyz3, xyz1_r, xyz2_r, xyz3_r]
 
-    def angles_to_internals(self, rx_xyz, ry_xyz, rz_xyz):
-        """Converte una terna rotazionale xyz da avionica ad interna, zyx"""
+    @staticmethod
+    def xyz_to_zyx(xyz1, xyz2, xyz3):
+        """Converte una terna rotazionale xyz da avionica ad interna, zyx
+
+        Per passare dalla notazione:
+
+                         |      c2c3             -c2s3         s2   |  1 = Rx = Roll
+                X1Y2Z3 = |  c1s3 + c3s1s2    c1c3 - s1s2s3   -c2s1  |  2 = Ry = Pitch
+                         |  s1s3 - c1c3s2    c3s1 + c1s2s3    c1c2  |  3 = Rz = Yaw
+
+        Alla notazione:
+
+                         |  c1c2    c1s2s3 - c3s1    s1s3 + c1c3s2  |  1 = Rz = Yaw
+                Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |  2 = Ry = Pitch
+                         |  -s2         c2s3             c2c3       |  3 = Rx = Roll
+
+        Procedo per ispezione, evitando acos.
+
+        Quindi trovo -s2, c2s1 e c2s3 della seconda, partendo dalla prima.
+
+        :param xyz1: Angolo di Roll in gradi secondo la terna interna
+        :param xyz2: Angolo di Pitch in gradi secondo la terna interna
+        :param xyz3: Angolo di Yaw in gradi secondo la terna interna
+        """
 
         # Converto gli angoli in ingresso in gradi
-        rx_xyz_r = rx_xyz / 180.0 * M_PI
-        ry_xyz_r = ry_xyz / 180.0 * M_PI
-        rz_xyz_r = rz_xyz / 180.0 * M_PI
+        xyz1_r = xyz1 / 180.0 * Kinematic.M_PI
+        xyz2_r = xyz2 / 180.0 * Kinematic.M_PI
+        xyz3_r = xyz3 / 180.0 * Kinematic.M_PI
 
-        # Ora calcolo i termini in funzione degli angoli forniti
-        c2s3_zyx = math.cos(rz_xyz_r) * math.sin(ry_xyz_r) - math.cos(rx_xyz_r) * math.sin(ry_xyz_r) * math.sin(rz_xyz_r)
-        s2_zyx = math.sin(rx_xyz_r) * math.sin(rz_xyz_r) + math.cos(rx_xyz_r) * math.sin(ry_xyz_r) * math.cos(rz_xyz_r)
-        s1c2_zyx = -math.cos(rx_xyz_r) * math.sin(rz_xyz_r) + math.cos(rz_xyz_r) * math.sin(ry_xyz_r) * math.sin(rx_xyz_r)
+        # Calcolo l'elemento 3:1 della prima matrice (s1s3 - c1c3s2)
+        minus_s2_xyz = (math.sin(xyz1_r) * math.sin(xyz3_r)) - (math.cos(xyz1_r) * math.cos(xyz3_r) * math.sin(xyz2_r))
+
+        # Calcolo l'elemento 2:1 della prima matrice (c1s3 + c3s1s2)
+        c2s1_xyz = (math.cos(xyz1_r) * math.sin(xyz3_r)) + (math.cos(xyz3_r) * math.sin(xyz1_r) * math.sin(xyz2_r))
+
+        # Calcolo l'elemento 2:3 della prima matrice (c3s1 + c1s2s3)
+        c2s3_xyz = (math.cos(xyz3_r) * math.sin(xyz1_r)) + (math.cos(xyz1_r)) - (math.sin(xyz2_r) * math.sin(xyz3_r))
 
         # Ora trovo gli angoli
-        ry_zyx_r = math.asin(s2_zyx)
-        c2_zyx = math.cos(ry_zyx_r)
-        rz_zyx_r = math.asin(s1c2_zyx / c2_zyx)
-        rx_zyx_r = math.asin(c2s3_zyx / c2_zyx)
-        rx_zyx = rx_zyx_r / M_PI * 180.0
-        ry_zyx = ry_zyx_r / M_PI * 180.0
-        rz_zyx = rz_zyx_r / M_PI * 180.0
+        zyx2_r = math.asin(-minus_s2_xyz)
+        c2_xyz = math.cos(zyx2_r)
+        zyx1_r = math.asin(c2s1_xyz / c2_xyz)
+        zyx3_r = math.asin(c2s3_xyz / c2_xyz)
+        zyx3 = zyx3_r / Kinematic.M_PI * 180.0
+        zyx2 = zyx2_r / Kinematic.M_PI * 180.0
+        zyx1 = zyx1_r / Kinematic.M_PI * 180.0
 
-        return [rx_zyx, ry_zyx, rz_zyx, rx_zyx_r, ry_zyx_r, rz_zyx_r]
+        return [zyx3, zyx2, zyx1, zyx3_r, zyx2_r, zyx1_r]
 
     def find_solution(self, motor_positions):
-        """Determina gli angoli di rx_zyx, ry_zyx e rz_zyx date le altezze dei pistoni relative a 1.685mt"""
+        """Determina gli angoli di zyx3, zyx2 e zyx1 date le altezze dei pistoni relative a 1.685mt"""
 
         # Valuto il tempo necessario alla trasformazione
         if self.search_base_angles(motor_positions):
@@ -577,20 +596,20 @@ class Kinematic():
             #                  motor_positions[1],
             #                  motor_positions[2],
             #                  motor_positions[3],
-            #                  self.rx_zyx,
-            #                  self.ry_zyx,
-            #                  self.rz_zyx,
+            #                  self.zyx3,
+            #                  self.zyx2,
+            #                  self.zyx1,
             #                  self.cycles,
             #                  process_time))
             self.isLastAnglesValid = True
             return True
         else:
-            self.rz_zyx_r = 0.0
-            self.ry_zyx_r = 0.0
-            self.rx_zyx_r = 0.0
-            self.rx_zyx = 0.0
-            self.ry_zyx = 0.0
-            self.rz_zyx = 0.0
+            self.zyx1_r = 0.0
+            self.zyx2_r = 0.0
+            self.zyx3_r = 0.0
+            self.zyx3 = 0.0
+            self.zyx2 = 0.0
+            self.zyx1 = 0.0
             self.isLastAnglesValid = False
             return False
 
@@ -598,21 +617,20 @@ class Kinematic():
 
         res = kinematic_cy.search_angles(motor_positions)
         if res[0] == 0:
-            self.rx_zyx = res[1]
-            self.ry_zyx = res[2]
-            self.rz_zyx = res[3]
-            self.rx_zyx_r = res[4]
-            self.ry_zyx_r = res[5]
-            self.rz_zyx_r = res[6]
+            self.zyx3 = res[1]
+            self.zyx2 = res[2]
+            self.zyx1 = res[3]
+            self.zyx3_r = res[4]
+            self.zyx2_r = res[5]
+            self.zyx1_r = res[6]
             self.cycles = res[7]
-            angles = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
-            #angles1 = self.angles_to_avionics(self.rx_zyx_r, self.ry_zyx_r, self.rz_zyx_r)
-            self.rx_xyz = angles[2]
-            self.ry_xyz = angles[0]
-            self.rz_xyz = angles[1]
-            self.rx_xyz_r = angles[5]
-            self.ry_xyz_r = angles[3]
-            self.rz_xyz_r = angles[4]
+            angles = self.zyx_r_to_xyz(self.zyx3_r, self.zyx2_r, self.zyx1_r)
+            self.xyz1 = angles[2]
+            self.xyz2 = angles[0]
+            self.xyz3 = angles[1]
+            self.xyz1_r = angles[5]
+            self.xyz2_r = angles[3]
+            self.xyz3_r = angles[4]
             return True
         else:
             logging.error("Maximum number of cycles executed, no solution found [{}, {}, {} -> {} cycles]!".format(
@@ -622,16 +640,16 @@ class Kinematic():
                 motor_positions[3],
                 res[7]
             ))
-            self.rx_zyx = 0.0
-            self.ry_zyx = 0.0
-            self.rz_zyx = 0.0
-            self.rx_zyx_r = 0.0
-            self.ry_zyx_r = 0.0
-            self.rz_zyx_r = 0.0
+            self.zyx3 = 0.0
+            self.zyx2 = 0.0
+            self.zyx1 = 0.0
+            self.zyx3_r = 0.0
+            self.zyx2_r = 0.0
+            self.zyx1_r = 0.0
             self.cycles = 0.0
             return False
 
-    def calc_ik(self, rx_zyx, ry_zyx, rz_zyx):
+    def calc_ik(self, zyx3, zyx2, zyx1):
         """Prende gli angoli in ingresso e restituisce la posizione degli attuatori necessaria a raggiungerli.
 
         La posizione viene definita in step, ed è una lista così organizzata:
@@ -650,7 +668,7 @@ class Kinematic():
         motor_positions = [0.0, 0.0, 0.0, 0.0]
 
         # Converto gli angoli richiesti in radianti e me li memorizzo
-        angles_r = list([rx_zyx * M_TO_RAD, ry_zyx * M_TO_RAD, rz_zyx * M_TO_RAD])
+        angles_r = list([zyx3 * Kinematic.M_TO_RAD, zyx2 * Kinematic.M_TO_RAD, zyx1 * Kinematic.M_TO_RAD])
         angles_r_search = list(angles_r)
 
         # logging.warn("Required [{:+9.6f}, {:+9.6f}, {:+9.6f}]".format(
@@ -662,14 +680,13 @@ class Kinematic():
         # Inizializzo l'errore
         err = [0.0, 0.0, 0.0]
 
-        search_limit = 0.0001 / 180.0 * M_PI
+        search_limit = 0.0001 / 180.0 * Kinematic.M_PI
         cycle_limit = 100
 
         # Tre iterazioni sono sufficienti a portare l'errore sotto il millessimo di mm
         for i in range(0, cycle_limit):
 
             # Calcolo prima due termini costanti
-            # dd1 =
             dd1 = self.base_height * math.sin(angles_r_search[1])
             d23 = self.base_length * math.sin(angles_r_search[0])
 
@@ -684,9 +701,9 @@ class Kinematic():
             cycles_used += self.cycles
 
             # Calcolo l'errore tra gli angoli desiderati, e quelli ottenuti dalla dk
-            err[0] = angles_r[0] - self.rx_zyx_r
-            err[1] = angles_r[1] - self.ry_zyx_r
-            err[2] = angles_r[2] - self.rz_zyx_r
+            err[0] = angles_r[0] - self.zyx3_r
+            err[1] = angles_r[1] - self.zyx2_r
+            err[2] = angles_r[2] - self.zyx1_r
 
             if math.fabs(err[0]) < search_limit:
                 if math.fabs(err[1]) < search_limit:
@@ -704,9 +721,9 @@ class Kinematic():
             #               angles_r_search[0],
             #               angles_r_search[1],
             #               angles_r_search[2],
-            #               self.dk.rx_zyx_r,
-            #               self.dk.ry_zyx_r,
-            #               self.dk.rz_zyx_r,
+            #               self.dk.zyx3_r,
+            #               self.dk.zyx2_r,
+            #               self.dk.zyx1_r,
             #               N.degrees(err[0]),
             #               N.degrees(err[1]),
             #               N.degrees(err[2])
@@ -719,19 +736,19 @@ class Kinematic():
         self.ierr1 = err[1]
         self.ierr2 = err[2]
         if i == cycle_limit:
-            logging.error("Massimo numero di cicli raggiunto ({}, {} ,{})!".format(rx_zyx, ry_zyx, rz_zyx))
+            logging.error("Massimo numero di cicli raggiunto ({}, {} ,{})!".format(zyx3, zyx2, zyx1))
             return False
         self.last_conversion_positions = list(motor_positions)
         return True
 
-    def start_parsing(self, md5sum_of_file, tcp_protocol=None):
+    def start_parsing(self, filename, tcp_protocol=None):
 
         # Informa il padre se necessario
         if self.tripod is not None:
             self.tripod.isImporting = True
 
         # Salvo l'identificativo del file
-        self.sim_file = md5sum_of_file
+        self.sim_file = filename
 
         # Salvo il trasmettitore per inviare eventuali errori
         self.tcp_protocol = tcp_protocol
@@ -741,7 +758,7 @@ class Kinematic():
         self.parser_thread.setDaemon(True)
         self.parser_thread.start()
 
-    def convert_point(self, rx_zyx, ry_zyx, rz_zyx):
+    def convert_point(self, zyx3, zyx2, zyx1):
         """
         Le posizioni dei motori restituite dalla cinematica inversa (motor_positions) sono:
 
@@ -750,20 +767,20 @@ class Kinematic():
             - 2: motore 122, posizione in metri di altezza dalla colonna posteriore destra
             - 3: motore 119, posizione in radianti del giunto rotativo
 
-        :param rx_zyx:
-        :param ry_zyx:
-        :param rz_zyx:
+        :param zyx3:
+        :param zyx2:
+        :param zyx1:
         :return:
         """
 
         motor_steps = [0, 0, 0, 0]
 
-        #angles2 = self.angles_to_internals(
-        #    float(rx_zyx.replace(',', '.')), float(ry_zyx.replace(',', '.')), float(rz_zyx.replace(',', '.'))
+        # angles2 = self.angles_to_internals(
+        #    float(zyx3.replace(',', '.')), float(zyx2.replace(',', '.')), float(zyx1.replace(',', '.'))
         #)
 
-        #if not self.calc_ik(float(angles2[0]), float(angles2[1]), float(angles2[2])):
-        if not self.calc_ik(float(rx_zyx.replace(',', '.')), float(ry_zyx.replace(',', '.')), float(rz_zyx.replace(',', '.'))):
+        # if not self.calc_ik(float(angles2[0]), float(angles2[1]), float(angles2[2])):
+        if not self.calc_ik(float(zyx3.replace(',', '.')), float(zyx2.replace(',', '.')), float(zyx1.replace(',', '.'))):
             return False
 
         # Converto gli angoli e le altezze dei pistoni in step motore
@@ -772,7 +789,7 @@ class Kinematic():
         motor_steps[2] = int(self.last_conversion_positions[2] * self.mt_to_step)
         motor_steps[3] = int(self.last_conversion_positions[3] * self.radians_to_step)
 
-        # Contrx_zyxo che la posizione assoluta non ecceda i limiti fisici
+        # Contzyx3o che la posizione assoluta non ecceda i limiti fisici
         if motor_steps[0] < -319999:
             self.format_pos_limit_err_single("inferiore", "120", motor_steps)
             return False
@@ -806,7 +823,7 @@ class Kinematic():
 
         Il file deve essere scritto nella forma:
 
-        <roll>;<ry_zyx>;<rz_zyx>;<time_to_reach_in_ms>;<optional comment>
+        <roll>;<zyx2>;<zyx1>;<time_to_reach_in_ms>;<optional comment>
         12.321;-2.23;0.001;200;commento opzionale
         12.321;-2.23;0.012;3210.3;
 
@@ -839,35 +856,21 @@ class Kinematic():
             os.umask(0)
             os.makedirs(self.tripod.config.SIM_PATH, 0777)
 
-        if len(self.sim_file) < 36:
-            logging.error("No valid checksum given, should be 33 bytes lenght")
-            # TODO, esci e segnala
+        filename = self.sim_file.rstrip().upper()[4:]
+        logging.info("Analizzo il file {}".format(filename))
 
-        md5_sum_file = self.sim_file.rstrip().upper()[4:]
-        logging.info("Analizzo il file {}".format(md5_sum_file))
-
+        # Puo' essere l'md5sum od il nome di file direttamente
         found_something = False
-        filename = ''
 
         for file_found in os.listdir(self.tripod.config.SIM_PATH):
 
-            filename = self.tripod.config.SIM_PATH + file_found
+            filename_complete = self.tripod.config.SIM_PATH + file_found
 
-            if all([os.path.isfile(filename), filename[-3:] == "csv"]):
-
-                try:
-                    md5sum_output = subprocess.check_output([self.tripod.config.MD5SUM_EXEC, filename]).upper()
-                except Exception, e:
-                    logging.warn("Unable to md5sum file {}".format(filename))
-                    continue
-
-                md5sum_output = md5sum_output.split(' ')
-                logging.warn("Check file %s: '%s'" % (filename, md5sum_output[0]))
-                if md5sum_output[0] == md5_sum_file:
-                    logging.warn("Found file {}!".format(file))
-                    shutil.copyfile(filename, "{}simulazione_{}.csv".format(self.tripod.config.LOG_PATH, md5_sum_file))
-                    found_something = True
-                    break
+            if file_found == self.sim_file:
+                logging.warn("Found file {}!".format(file))
+                shutil.copyfile(filename, "{}simulazione_{}.csv".format(self.tripod.config.LOG_PATH, filename_complete))
+                found_something = True
+                break
 
         try:
 
@@ -1121,61 +1124,6 @@ class Kinematic():
         if reactor:
             reactor.callFromThread(self.tripod.update_import_end, "")
 
-
-def test_distance(k):
-
-    # Provo le funzioni di calcolo delle distanze
-    alphas = [0.3, 0.4, 0]
-    motor_positions = [k.base_height + 0.2, k.base_height + 0.1, k.base_height - 0.2]
-    distance_12 = k.distance_12(alphas, motor_positions)
-    distance_23 = k.distance_23(alphas, motor_positions)
-    distance_13 = k.distance_13(alphas, motor_positions)
-    # 0.52804341498, 0.885684986893, 0.980524171149
-    if (distance_12 - 0.528043414) > 0.000000001:
-        print "Assert: distance_12() errata, {} != {}".format(distance_12, 0.52804341498)
-        return
-    if (distance_23 - 0.885684986) > 0.000000001:
-        print "Assert: distance_23() errata, {} != {}".format(distance_12, 0.885684986893)
-        return
-    if (distance_13 - 0.980524171) > 0.000000001:
-        print "Assert: distance_13() errata, {} != {}".format(distance_12, 0.980524171149)
-        return
-    print "test_distance: OK ({:011.9f}, {:011.9f}, {:011.9f})".format(distance_12, distance_23, distance_13)
-
-
-def test_dk(k):
-
-    # Ecco alcuni punti da provare
-    #                        1        2        3              R       P       Y
-    list_pos = [[+0.0000, +0.0533, -0.0533, 0.000],
-                [+0.0000, +0.1060, -0.1060, 0.000],
-                [+0.0461, -0.0461, -0.0461, 0.000],
-                [+0.0919, -0.0919, -0.0919, 0.000],
-                [+0.0461, +0.0069, -0.0991, 0.000],
-                [+0.0918, +0.0125, -0.1960, 0.000],
-                [+0.0000, +0.0533, -0.0533, 1.586],
-                [+0.0000, +0.1060, -0.1060, 1.586],
-                [+0.0461, -0.0461, -0.0461, 1.586],
-                [+0.0919, -0.0919, -0.0919, 1.586],
-                [+0.0461, +0.0069, -0.0991, 1.586],
-                [+0.0918, +0.0125, -0.1960, 1.586]]
-
-                # 57248;+020035;-049659;-007453;+107733;-006.82;-006.78;+0007.44;AS8;T09;C015;004 / 003.57 ms
-                # 57249;+020320;-050393;-007552;+109293;-006.92;-006.88;+0007.53;AS8;T09;C015;007 / 003.59 ms
-                # 57250;+020890;-051858;-007736;+112414;-007.02;-006.98;+0007.64;AS8;T09;C015;036 / 009.64 ms
-
-    for pos in list_pos:
-        k.find_solution(pos)  # [ +05.00, +00.00, +000.00]
-        print "[{:+07.4f}, {:+07.4f}, {:+07.4f}, {:+07.4f}] ->  [{:+08.4f}, {:+08.4f}, {:+09.4f}]".format(
-            pos[0],
-            pos[1],
-            pos[2],
-            pos[3],
-            k.roll,
-            k.pitch,
-            k.yaw)
-
-
 def test_speed():
 
     pos = [+0.0000, +0.0532, -0.0532, 0.000]
@@ -1195,7 +1143,6 @@ def test_speed():
             step = 0.5
     total_time = ((time.time() - start) / iterations) * 1000000
     print "Pure python implementation {:06.2f} us / cycle, {} cycles in {:04.2f}ms".format(total_time / cycles, cycles, total_time / 1000.0)
-
 
 def test_speed_fast():
 
@@ -1217,7 +1164,6 @@ def test_speed_fast():
     total_time = ((time.time() - start) / iterations) * 1000000
     print "Pure cython implementation {:06.2f} us / cycle, {} cycles in {:04.2f}ms".format(total_time / cycles, cycles, total_time / 1000.0)
 
-
 def test_pitch_problem():
 
     sin_step = 1000
@@ -1231,8 +1177,8 @@ def test_pitch_problem():
                     "ICycles;Err0;Err1;Err2;DCycles\n")
 
     for i in range(sin_step):
-        my_roll = sin_ampl * 0.5 * math.sin(2 * M_PI * (i + 100) / 500)
-        my_pitch = sin_ampl * math.sin(2 * M_PI * i / 500)
+        my_roll = sin_ampl * 0.5 * math.sin(2 * Kinematic.M_PI * (i + 100) / 500)
+        my_pitch = sin_ampl * math.sin(2 * Kinematic.M_PI * i / 500)
         if not k.calc_ik(my_roll, my_pitch, my_yaw):
             return
         motor_steps[0] = int(self.last_conversion_positions[0] * k.mt_to_step)
@@ -1277,54 +1223,54 @@ def test_conversion(k):
         k.find_solution_fast([-float(pos[0]), -float(pos[1]), -float(pos[2]), 0])
         dcyc = k.cycles
 
-        m = k.calc_ik(k.rx_zyx, k.ry_zyx, k.rz_zyx)
+        m = k.calc_ik(k.zyx3, k.zyx2, k.zyx1)
         icyc = k.cycles
         logging.debug(
             "({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
                 pos[0], pos[1], pos[2], 0,
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
                 k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
             )
         )
-        m = k.calc_ik(k.rx_zyx, k.rz_zyx, k.ry_zyx)
+        m = k.calc_ik(k.zyx3, k.zyx1, k.zyx2)
         icyc = k.cycles
         logging.debug(
             "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
-                k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
-            )
-        )
-
-        m = k.calc_ik(k.rz_zyx, k.rx_zyx, k.ry_zyx)
-        icyc = k.cycles
-        logging.debug(
-            "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
-                k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
-            )
-        )
-        m = k.calc_ik(k.rz_zyx, k.ry_zyx, k.rx_zyx)
-        icyc = k.cycles
-        logging.debug(
-            "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
                 k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
             )
         )
 
-        m = k.calc_ik(k.ry_zyx, k.rz_zyx, k.rx_zyx)
+        m = k.calc_ik(k.zyx1, k.zyx3, k.zyx2)
         icyc = k.cycles
         logging.debug(
             "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
                 k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
             )
         )
-        m = k.calc_ik(k.ry_zyx, k.rx_zyx, k.rz_zyx)
+        m = k.calc_ik(k.zyx1, k.zyx2, k.zyx3)
         icyc = k.cycles
         logging.debug(
             "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
-                k.rx_zyx, k.ry_zyx, k.rz_zyx, dcyc,
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
+                k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
+            )
+        )
+
+        m = k.calc_ik(k.zyx2, k.zyx1, k.zyx3)
+        icyc = k.cycles
+        logging.debug(
+            "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
+                k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
+            )
+        )
+        m = k.calc_ik(k.zyx2, k.zyx3, k.zyx1)
+        icyc = k.cycles
+        logging.debug(
+            "                                  -> ({:07.4f}, {:07.4f}, {:07.4f}) {:04d} -> ({:06.4f}, {:06.4f}, {:06.4f}, {:06.4f}) {:04d}".format(
+                k.zyx3, k.zyx2, k.zyx1, dcyc,
                 k.last_conversion_positions[0], k.last_conversion_positions[1], k.last_conversion_positions[2], k.last_conversion_positions[3], icyc
             )
         )
@@ -1333,12 +1279,12 @@ def test_conversion(k):
             "({}, {}, {}) -> ({:07.4f}({:07.4f}), {:07.4f}({:07.4f}), {:07.4f}({:07.4f}) -> "
             "({:07.4f}({:07.4f}), {:07.4f}({:07.4f}), {:07.4f}({:07.4f}))".format(
                 pos[0], pos[1], pos[2],
-                k.rx_zyx, pos[3],
-                k.ry_zyx, pos[4],
-                k.rz_zyx, pos[5],
-                k.rx_xyz, pos[6],
-                k.ry_xyz, pos[7],
-                k.rz_xyz, pos[8]
+                k.zyx3, pos[3],
+                k.zyx2, pos[4],
+                k.zyx1, pos[5],
+                k.xyz1, pos[6],
+                k.xyz2, pos[7],
+                k.xyz3, pos[8]
             )
         )"""
 
@@ -1382,15 +1328,10 @@ if __name__ == '__main__':
     # Istanzio la classe
     k = Kinematic(my_tripod)
 
-    # Provo le distanze
-    #test_distance(k)
-
-    # Provo la corretta risoluzione di alcuni punti noti
-    #test_dk(k)
-
     # Provo la velocita'
-    # test_speed()
-    # test_speed_fast()
+    test_speed()
+    test_speed_fast()
+    k.calc_ik(29, 0, 0)
 
     # Provo la cinematica inversa e trovo la combinazione di angoli che porta alla posizione limite dell'attuatore
     #for i in range(30):
@@ -1409,10 +1350,10 @@ if __name__ == '__main__':
     # Provo l'importazione di una simulazione
     # start = time.time()
     # k.calc_ik(40.744, 0.0, 0.0)
-    #k.start_parsing("CT3 E156E86AC46F5DB4CC563F18AC4825EB")
+    #k.start_parsing("CT3 BF4FAAE8CD14714DE2B4EBDC532AC695")
     #k.parser_thread.join()
     # print "Pure python implementation {:06.2f} ms / simulation".format(((time.time() - start)) * 1000)
     # test_pitch_problem()
 
     # Roll, Pitch, Yaw
-    test_conversion(k)
+    #test_conversion(k)

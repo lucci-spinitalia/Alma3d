@@ -35,6 +35,7 @@ class Alarm():
         self.INPUT_PIN = self.config.FENCE_PIN   # Seleziona il pin 12
         self.isFencePresent = False
         self.isFenceEnabled = True
+        self.isFencedCrossed = False
 
         # Allarme ottico/acustico
         try:
@@ -170,56 +171,56 @@ class Alarm():
         self.buzzer = True
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA &= ~(0x1<<0)
+            self.DEVICE_REG_DATA &= ~(0x1 << 0)
         
     def green_on(self):
 
         self.green = True
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA &= ~(0x1<<1)
+            self.DEVICE_REG_DATA &= ~(0x1 << 1)
         
     def yellow_on(self):
 
         self.yellow = True
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA &= ~(0x1<<2)
+            self.DEVICE_REG_DATA &= ~(0x1 << 2)
         
     def red_on(self):
 
         self.red = True
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA &= ~(0x1<<3)
+            self.DEVICE_REG_DATA &= ~(0x1 << 3)
 
     def beep_off(self):
 
         self.buzzer = False
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA |= (0x1<<0)
+            self.DEVICE_REG_DATA |= (0x1 << 0)
 
     def green_off(self):
 
         self.green = False
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA |= (0x1<<1)
+            self.DEVICE_REG_DATA |= (0x1 << 1)
 
     def yellow_off(self):
 
         self.yellow = False
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA |= (0x1<<2)
+            self.DEVICE_REG_DATA |= (0x1 << 2)
 
     def red_off(self):
 
         self.red = False
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA |= (0x1<<3)
+            self.DEVICE_REG_DATA |= (0x1 << 3)
 
     def all_on(self):
 
@@ -229,7 +230,7 @@ class Alarm():
         self.red = True
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA &= ~(0xf<<0)
+            self.DEVICE_REG_DATA &= ~(0xf << 0)
 
     def all_off(self):
 
@@ -239,7 +240,7 @@ class Alarm():
         self.red = False
         self.alarm_status()
         if self.isAlarmPresent:
-            self.DEVICE_REG_DATA |= (0xf<<0)
+            self.DEVICE_REG_DATA |= (0xf << 0)
             
     def update(self):
     
