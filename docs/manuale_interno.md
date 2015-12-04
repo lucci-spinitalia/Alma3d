@@ -8,15 +8,14 @@ Data 1/09/2015
 ========
 
   1. Descrizione generale
-  2. Ricerca dell'indirizzo del tripode
-  3. Invio di una simulazione
-  4. Determinazione della posizione del tripode
-  5. Operazioni con il tripode
-  6. Inizializzazione del sistema Alma3d
-  7. Gestione degli errori asincroni
-  8. Processi
-  9. Funzionalita da implementare
-  10. Unittest
+  2. Guida rapida al sistema Alma3d
+  3. Determinazione della posizione del tripode
+  4. Operazioni con il tripode
+  5. I file di simulazione
+  6. Gestione degli errori asincroni
+  7. Processi
+  8. Funzionalita da implementare
+  9. Unittest
 
   A. Unita' di misura
   B. Stati del sistema
@@ -92,46 +91,140 @@ infine, le informazioni inviate sul secondo canale di comunicazione:
 
     %tcp% <informazioni stato tripode>
 
-# 2. Ricerca dell'indirizzo del tripode
+#2. Guida rapida al sistema Alma3d
+=======================================
+
+##2.1 Ricerca dell'indirizzo del tripode
 ========================================
 
 Un metodo per trovare l'ip consiste nel richidere la risoluzione
 inversa al server WINS del computer SPINITALIA_ALMA3D.
 
+##2.2 Login
+============
+Una volta scoperto l'indirizzo IP, bisogna innanzitutto fornire le
+credenziali di accesso al sistema, tramite il comando LGN. A seguito del
+riconoscimento dell'utente è possibile interagire inviando gli altri
+comandi.
 
-# 3. Invio di una simulazione
-==============================
+Esempio:
+    >tcp> LGN alma_user spinitalia
+    <tcp< OK LGN
 
-Per prima cosa occorre preparare un file in formato csv, con le righe
-organizzate cosi:
 
-  <roll>;<pitch>;<yaw>;<time_to_reach_in_ms>;<optional comment>
-  12.321;-2.23;0.001;200;commento opzionale
-  12.321;-2.23;0.012;3210.3;
+##2.3 Inizializzazione del sistema
+==================================
+Prima di compiere qualsiasi operazione è necessario inizializzare il sistema
+con il comando CT0, possibilmente seguito dall'indicazione del peso montato
+sul piatto.
 
-E' ignorata automaticamente la prima linea se contiene un'intestazione.
+Esempio:
+    >tcp>CT0 W50
+    <tcp< OK CT0
 
-Gli angoli ed il tempo sono espressi secondo la seguente notazione:
+##2.4 Homing
+=================
+Se il controllo iniziale del sistema viene eseguito con successo, è possibile
+passare alla procedura di homing, mandatoria alla prima accensione e dopo
+ogni uscita da uno stato di emergenza.
 
-  Roll:  -45.00 ... +45.00 gradi
-  Pitch: -45.00 ... +45.00 gradi
-  Yaw:     0.00 ... 360.00 gradi
-  Time:       1 ... 256000  ms
+Esempio:
+    >tcp> CT2 P1
+    <tcp< CT2 P1
 
-Il tempo si intende come quello necessario a raggiungere la posizione
-indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la
-sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione
-del comando.
+Da questo momento il tripode spinitalia alma3d è pronto per eseguire simulazioni
+o spostamenti.
 
+##2.5. Invio di una simulazione
+===============================
 Per memorizzare un file della simulazione all'interno del sistema, basta 
 accedere alla directory condivisa \\SPINITALIA-ALMA3D\simulazioni e 
 salvarlo al suo interno.
 
+##2.6. Conversione della simulazione
+====================================
+Prima di poter avviare la simulazione e necessario convertire i dati nel
+formato riconosciuto dai motori, oltre ad eseguire un controllo sulla
+congruità dei dati passati. Queste funzioni sono racchiuse nel comando
+CT3, che prende come parametro il nome della simulazione contenuta nella
+precedente cartella.
 
-# 4. Determinazione della posizione del tripode
+Esempio:
+  >tcp> CT3 simulazione.csv
+  <tcp< OK CT3
+
+##2.7. Avvio simulazione
+====================================
+La simulazione convertita può essere avviata tramite il comando CT4. Il 
+tripode spinitalia alma3d risponderà con un OK CT4 concluso la serie di
+movimenti richiesti.
+
+Esempio:
+  >tcp> CT4
+      .
+      .
+      .
+  <tcp< OK CT4
+
+##2.8. Centraggio
+===================
+Dopo la fine della simulazione, è necessario centrare il sistema prima di
+poterne avviare un'altra.
+Per centrare il sistema utilizzare il comando CT2 P2
+
+Esempio:
+  >tcp> CT2 P2
+  <tcp< OK CT2 P2
+
+##2.9. Comando di posizionamento (GOTO)
+=========================================
+Quando si vuole posizionare il tripode spinitalia alma3d con un certo angolo,
+dalla posizione "CENTRATO" basta inviare il comando CT1
+
+Esempio:
+  >tcp> CT1 R20 P10 Y360 V30
+  <tcp< OK CT1
+
+##2.10. Spegnimento del sistema
+=================================
+Per spegnere il sistema inviare il comando CT6, che riporterà il tripode
+all'altezza minima ed inviarà il segnale di shutdown al controllore.
+
+Esempio:
+  >tcp> CT6
+  <tcp< OK CT6
+
+##2.11 Uso tipico del tripode spinitalia alma3d
+=================================================
+    >tcp> LGN alma_user spinitalia
+    <tcp< OK LGN
+
+    >tcp>CT0 W50
+    <tcp< OK CT0
+
+    >tcp> CT2 P1
+    <tcp< CT2 P1
+
+    >tcp> CT3 simulazione.csv
+    <tcp< OK CT3
+
+    >tcp> CT4
+        .
+        .
+        .
+    <tcp< OK CT4
+
+    >tcp> CT2 P2
+    <tcp< OK CT2 P2
+
+    >tcp> CT6
+    <tcp< OK CT6
+
+
+# 3. Determinazione della posizione del tripode
 ================================================
 
-## 4.1. Determinazione delle posizioni dal programma alma3d_canopenshell
+## 3.1. Determinazione delle posizioni dal programma alma3d_canopenshell
 ========================================================================
 
 Il programma alma3d_canopenshell apre una pipe all'avvio, che si trova nella
@@ -167,7 +260,7 @@ Il motore identificato come @M119 comanda la rotazione del piatto, possiede
 8000 step in un giro e la movimentazione passa attraverso un riduttore da
 1:115. 
 
-## 4.2. Determinazione delle posizioni dal programma Alma3d
+## 3.2. Determinazione delle posizioni dal programma Alma3d
 ========================================================================
 Il sistema legge le informazioni sulla posizione fornite da alma3d_canopenshell
 in step motore, le trasforma le altezze dei pistoni e poi in angoli R, P e Y.
@@ -196,7 +289,7 @@ Il tempo si intende come quello impiegato a raggiungere la posizione
 indicata, e viene espresso in ms.
 
 
-#5. Operazioni con il tripode
+#4. Operazioni con il tripode
 =============================
 
 Il controllo del Tripode Spinitalia Alma 3d avviene tramite procotollo TCP
@@ -242,7 +335,7 @@ I comandi sono codificati in modo che siano raggruppati in famiglie funzionali:
     EM<x>   | Avvio del comando di emergenza x (EMergenza)
     PR<x>   | Lettura o scrittura del parametro x (PaRametro)
 
-##5.1 Differenze tra i comandi Alma3d e quelli alma3d_canopenshell
+##4.1 Differenze tra i comandi Alma3d e quelli alma3d_canopenshell
 ===================================================================
 Anche se il formato tra i comandi Alma3d e alma3d_canopenshell è simile, le due 
 implementazioni possono presentare parametri diversi. La spiegazione di tali 
@@ -293,10 +386,10 @@ rimandando più avanti una descrizione più dettagliata.
    PR2                    | -
    PR3 A[R|P|Y] Lxx Uyy   | -
    PR4 xxx yyy            | -
-   PR5 Mxx Oyy Szz T8u ww | PR5 Mxx Oyy Szz T8u ww
+   -                      | PR5 Mxx Oyy Szz T8u ww
    PR6 xx yy              | -
 
-##5.2 Descrizione comandi Alma3d
+##4.2 Descrizione comandi Alma3d
 ================================
 Qui di seguito viene riportato l'elenco completo le procedure implementate:
 
@@ -430,6 +523,12 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
     - CT2 P2
 
           Sposta il sistema nella posizione di HOME.
+
+          Esempio:
+            >tcp> CT2 P2
+            >>>> CT2 P2
+            <<<< CT2 P2
+            <tcp< CT2 P2
 
     - CT2 P3
 
@@ -603,40 +702,27 @@ Qui di seguito viene riportato l'elenco completo le procedure implementate:
             <<<< OK CT6
             <tcp< OK CT6
 
-Sono implementate le seguenti procedure di emergenza:
-
-    - EM1
-
-          Rilascia tutti i motori. Normalmente restituisce:
-
-            OK EM1
-
     - EM2
 
           Blocca tutti i motori ovunque essi siano. Normalmente
           restituisce:
 
-            OK EM2
+            <tcp< OK EM2
 
-Sono implementati i seguenti parametri:
+          Questo comando di emergenza viene inviato automaticamente da Alma3d
+          quando vengono interrotte le barriere infrarossi.
 
     - PR1
 
-          Richiedi lo stato del tripode spinitalia, i possibili valori sono:
+          Richiedi lo stato del tripode spinitalia. Nell'appendice B è possibile 
+          consultare i diversi valori restituiti.
 
-            OK PR1: 1, Spento
-            OK PR1: 2, Emergenza
-            OK PR1: 3, Attivo
-            OK PR1: 4, Inizializzato
-            OK PR1: 5, In ricerca del centro
-            OK PR1: 6, Centrato
-						OK PR1: 7, In analisi del file fornito
-            OK PR1: 8, Simulazione
-            OK PR1: 9, Fermo
-            OK PR1: A, In centraggio
-            OK PR1: B, Rilasciato
-						OK PR1: C, Libero
-            OK PR1: D, User not logged in
+          Esempio:
+            >tcp> PR1
+            >>>> PR1
+            <<<< OK PR1: 4, Inizializzato
+            <tcp< OK PR1: 4, Inizializzato
+            
 
     - PR2
 
@@ -650,14 +736,13 @@ Sono implementati i seguenti parametri:
           Imposta i limiti di uno dei tre giunti ( Roll, Pitch, Yaw ),
           tramite due valori, Lower ed Upper.
 
-    - PR4 192.168.178.2 255.255.255.0 192.168.178.1
+    - PR4 <indirizzo ip> <netmask> <gateway>
 
           Imposta l'Ip/Netmask/Getaway
-
-    - PR5 M121 O60FB S005 T8u 0F
-
-          Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
-          con un 8bit unsigned ( <8/16/32><s/u> )
+        
+          Esempio:
+            >tcp> PR4 192.168.178.2 255.255.255.0 192.168.178.1
+            <tcp< OK PR4
 
     - PR6 <user> <nuova_password>
 
@@ -665,14 +750,12 @@ Sono implementati i seguenti parametri:
           stringa alfanumerica di 8-32 caratteri, scelti tra [0-9], [a-z],
           [A-Z], _ e -.
 
-	      Il nome utente puo' essere 'alma3d_user'.
-
-    - PR7
-
-          Richiede l'MD5SUM dell'ultima simulazione convertita
+	  Esempio:
+            >tcp> PR6 simone spano
+            <tcp< OK PR6
 
 
-##5.3 Descrizione comandi alma3d_canopenshell
+##4.3 Descrizione comandi alma3d_canopenshell
 =============================================
     - CT0 M<num motori>
         Invia un segnale di reset a tutti i dispositivi canopen
@@ -852,34 +935,200 @@ Sono implementati i seguenti parametri:
             >>>> CT6
             <<<< OK CT6
 
+    - EM2
 
-##5.4 I file di simulazione
+          Blocca tutti i motori ovunque essi siano. Normalmente
+          restituisce:
+
+            <<<< OK EM2
+
+    - PR1
+
+          Richiedi lo stato del tripode spinitalia. Nell'appendice B è possibile 
+          consultare i diversi valori restituiti.
+
+          Esempio:
+            >>>> PR1
+            <<<< OK PR1: 4, Inizializzato
+
+    - PR5 M<motore> O<registro_hex> S<indice> T<num bit><tipo> <valore>
+
+          Cambia direttamente il valore del registro canopen <registro_hex> del 
+          motore <motore>.
+
+          I valori <registro_hex> devono essere registri validi e devono essere
+          scritti in esadecimale senza il prefisso '0x'.
+  
+          I valori <indice> devono essere degli indici validi e devono essere
+          scritti in decimale.
+
+          Il parametro <num bit> indica il numero di bit di <valore> e può essere 
+          uno dei seguenti: 8, 16, 32
+
+          Il parametro <tipo> indica il tipo di dato passato 
+          Esempio:
+          Imposto a 0Fh il parametro con sub-index 5 dell'oggetto 60FBh
+          con un 8bit unsigned ( <8/16/32><s/u> )
+
+          PR5 M121 O2101 S03 T16u 2
+
+#5. I file di simulazione
 ======================================
+Alma3d ed alma3d_canopenshell lavorano su diverse grandezze fisiche: mentre il primo
+accetta dei valori in posizione espressi nella terna RPY in gradi, il secondo
+vuole come input soltanto step motore. Quindi la prima rappresentazione viene 
+trasformata tramite la cinematica inversa in quattro valori diversi, uno per ogni
+motore.
 
-    - CT1 M52 S-1421774321 T18546 ( non disponibile all'esterno )
+    {<roll><pitch><yaw>} -> {<step_motore1>} {<step_motore2>} {<step_motore3>} {<step_motore4>}
 
-          Muove il motore con indirizzo 52 allo step -1.421.774.321 in
-          18,546 secondi. Questo comando viene inserito all'interno del
-          file 52.mot e proviene da un file di configurazione non
-          accessibile dall'esterno.
+Per questo motivo, quando si genera una simulazione, dal file di input dell'utente
+con estensione .csv vengono prodotti 4 "file motore" con estensione .mot.
 
-    - CT1 M121 H-2314085 VF2000 VB1000  ( non disponibile all'esterno )
+##5.1 Il file simulazione per Alma3d
+====================================
+Il file simulazione prodotto dall'utente dovrà contenere delle righe contenenti
+i parametri nel seguente formato:
 
-          Imposta la posizione di HOME del motore con indirizzo 121 ad
-          una distanza di -2.314.085 step dal finecorsa, raggiungendolo
-          con una velocita' di 2000RPM ed allontanandosi con una velocita'
-          di 1000RPM. Questo comando viene inserito all'interno del file
-          121.mot e proviene da un file di configurazione non accessibile
-          dall'esterno.
+  <roll>;<pitch>;<yaw>;<time_to_reach_in_ms>;<optional comment>
 
-#6. Inizializzazione del sistema Alma3d
-=======================================
-Una volta scoperto l'indirizzo IP, bisogna innanzitutto fornire le
-credenziali di accesso al sistema, tramite il comando LGN. A seguito del
-riconoscimento dell'utente è possibile interagire inviando gli altri
-comandi.
+La prima riga può anche essere l'intestazione del file: in questo caso verrà 
+automaticamente ignorata.
 
-7. Gestione degli errori asincroni
+Esempio:
+  <roll>;<pitch>;<yaw>;<time_to_reach_in_ms>;<optional comment>
+  0.000;0.000;0.000;010;
+  0.002;0.000;0.000;010;
+  0.008;0.000;0.000;010;
+  0.018;0.000;0.000;010;
+  0.032;0.000;0.000;010;
+  0.050;0.000;0.000;010;
+
+I parametri sono espressi secondo la seguente notazione:
+
+  <roll>  -45.00 ... +45.00 gradi
+  <pitch> -45.00 ... +45.00 gradi
+  <yaw>     0.00 ... 360.00 gradi
+  <time>       1 ... 256000  ms
+
+Il parametro <time> si intende come quello necessario a raggiungere la posizione
+indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la
+sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione
+del comando.
+
+##5.2 Il file simulazione per alma3d_canopenshell
+=================================================
+Le file motori devono rispettare il seguente formato:
+
+  CT1 M<inirizzo motore> S<step> T<tempo>
+
+e, per essere riconosciuti, devono essere nominati come:
+
+  <indirizzo motore>.mot
+
+e memorizzati nella sottocartella /tmp/spinitalia/motor_data/
+
+I parametri sono espressi secondo la seguente notazione:
+
+  <indirizzo motore>       1 ... 127
+  <step>               -2^31 ... 2^31
+  <tempo>                  1 ... 256000    ms
+
+Il parametro <tempo> si intende come quello necessario a raggiungere la posizione
+indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la
+sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione
+del comando.
+
+Esempio:
+  Per generare un file simulazione per il motore con indirizzo canopen 120,
+  si deve prima creare il file
+
+  /tmp/spinitalia/motor_data/120.mot
+
+  ed al suo interno è necessario scrivere le posizioni nel seguente formato:
+
+  CT1 M120 S0 T10
+  CT1 M120 S16 T10
+  CT1 M120 S64 T10
+  CT1 M120 S144 T10
+  CT1 M120 S256 T10
+  CT1 M120 S400 T10
+  CT1 M120 S576 T10
+  CT1 M120 S784 T10
+  CT1 M120 S1024 T10
+  CT1 M120 S1296 T10
+  CT1 M120 S1600 T10
+
+  Quindi, prendendo in considerazione la seconda linea, una volta avviata la simulazione,
+  il motore 120 si muoverà nella posizione 16 in 10 ms. Raggiunto l'obiettivo nel tempo
+  stabilito, si muoverà nella posizione 64 in 10 ms, ecc.
+
+E' importante che la formattazione ed il range dei parametri siano rispettati, altrimenti
+la riga non conforme verrà scartata e verrà eseguita la successiva, fino al raggiungimento
+della fine del file.
+
+ATTENZIONE: alma3d_canopenshell non ha cognizione della cinematica, quindi non esiste
+alcuno controllo sulla posizione finale richiesta. Inoltre un cambiamento di posizione
+grande tra un riga e l'altro, oppure un tempo di raggiungimento troppo piccolo, potrebbe
+generare una richiesta in velocità troppo elevata, con conseguente blocco del motore
+(di solito segnalato come un "position error".
+
+##5.2 Il file di homing
+=======================
+Il comando di homing aziona la rotazione dei motori fino a quando viene catturato
+l'evento di raggiungimento del limite di giunto. Questo è un punto con posizione nota,
+quindi il motore può impostare il nuovo punto d'origine per poi posizionarcisi.
+Per eseguire questa procedura è necessario fornire delle informazioni, come la distanza
+in step del limite di giunto con il nuovo origine, la velocità di rotazione durante la 
+ricerca e quella durante il raggiungimento della nuova origine.
+Il metodo per passare questi parametri è simile a quello utilizzato per i file motori,
+solo che, in questo caso, la formattazione diventa:
+
+  CT1 M<indirizzo motore> H<step limite giunto> VF<vel ricerca> VB<vel ritorno>
+
+Come per le simulazioni, i file devono essere nominati come:
+
+  <indirizzo motore>.mot
+
+e memorizzati nella sottocartella /tmp/spinitalia/motor_data/
+
+I parametri sono espressi secondo la seguente notazione:
+
+  <indirizzo motore>       1 ... 127
+  <step limite giunto>     -2^31 ... 2^31
+  <vel ricerca>            -2^-31 ... 2^31
+  <vel ritorno>            -2^-31 ... 2^31
+
+Il parametro <step limite giunto> rappresenta la distanza in step tra il limite e
+la nuova origine. Il segno indica la direzione di raggiungimento, quindi: nel caso
+in cui, per raggiungere l'origine, il motore deve girare nel senso opposto a quello
+di ricerca, il valore del parametro sarà negativo.
+
+I parametri <vel ricerca> e <vel ritorno> hanno un'unità di misura proprio del motore.
+Per ottenere il loro valore partendo da velocità con unità di misura standard, utilizzare
+la seguente formula:
+
+          VT = Velocity * 65536      ( Giri al secondo   )
+
+Esempio:
+  Prima di avviare l'homing, si devono creare i file
+
+  /tmp/spinitalia/motor_data/119.mot
+  /tmp/spinitalia/motor_data/120.mot
+  /tmp/spinitalia/motor_data/121.mot
+  /tmp/spinitalia/motor_data/122.mot
+
+  ed al loro interno è necessario inserire i dati nel seguente formato:
+
+  CT1 M120 H-320000 VF300000 VB900000
+
+  In questo caso il motore 120, appena raggiunto il limite di giunto,
+  imposterà l'origine a -320000 step dalla posizione attuale nel verso
+  opposto a quello di ricerca. La velocità di ricerca è di 300000 e quella
+  di ritorno 900000.
+
+
+#6. Gestione degli errori asincroni
 ==================================
 
   Qualora si verificasse un errore durante il funzionamento del sistema, le
@@ -893,7 +1142,7 @@ comandi.
   Per conoscere lo stato del sistema e' possibile in ogni momento inviare il
   comando PR1.
 
-8. Processi
+#7. Processi
 ===========
 
   - TesInterface: Permette l'accesso al sistema dall'esterno. Contiene il
@@ -909,7 +1158,7 @@ comandi.
     avviando e arrestando la simulazione.
 
 
-9. Funzionalita da implementare
+#8. Funzionalita da implementare
 ===============================
 
   [Stati obbligatori]
@@ -945,7 +1194,7 @@ comandi.
   - TesIntf ha la posizione dall'homing configurata per giunti
   - USB-AUTOMOUNT deve eseguire l'upgrade del firmware e del kernel
 
-10. Unittest
+#9. Unittest
 ===========
 
   - Ricezione del file
@@ -953,7 +1202,7 @@ comandi.
   - Autenticazione
 
 
-A. Grandezze utilizzate
+#A. Grandezze utilizzate
 =======================
 
   [Pubbliche]
@@ -964,7 +1213,7 @@ A. Grandezze utilizzate
   <uint>:           0 ... 2^32 (unsigned int)
   <status>:         0 ... A
 
-B. Stati del sistema
+#B. Stati del sistema
 ====================
 
 Gli stati in cui puo' trovarsi il tripode sono i seguenti:
@@ -972,24 +1221,24 @@ Gli stati in cui puo' trovarsi il tripode sono i seguenti:
   - 0, Errore asincrono*
   - 1, Spento
   - 2, Emergenza
-  - 3, Attivo
+  - 3, Acceso
   - 4, Inizializzato
   - 5, In ricerca del centro
   - 6, Centrato
   - 7, In analisi del file fornito
   - 8, Simulazione
   - 9, Fermo
-  - A, In centraggio
-  - B, Rilasciato
-  - C, Libero
-  - D, Nessuna credenziale fornita
+  - 10, In centraggio
+  - 11, Rilasciato
+  - 12, Nessuna credenziale fornita
+  - 13, In posizione
 
 *) Per ragioni estranee al comando in esecuzione, si possono verificare errori che causano il blocco del
    sistema, come ad esempio un calo della tensione di alimentazione dei motori per l'eccessivo sforzo.
    Questa condizione e' indicata dallo stato 0. Per ottenere informazioni circa l'errore basta inviare un
    qualsiasi comando, e nella risposta verra' esplicitata la condizione di errore.
 
-B. Riferimenti
+#C. Riferimenti
 ==============
 
 1. https://tools.ietf.org/html/rfc1321

@@ -20,14 +20,11 @@ digraph canopenshell_machine {
 	FERMO -> CENTRAGGIO [ label = "CT2 P2" ];
 	FERMO -> RILASCIATO [ label = "CT2 P3" ];
 	FERMO -> SPENTO [ label = "CT6" ];
+        FERMO -> IN_POSIZIONE [ label = "CT1 Mx Px VMx AMx" ];
 	CENTRAGGIO -> CENTRATO [ label = "fine" ];
-	RILASCIATO -> LIBERO [ label = "CT2 P4" ];
 	RILASCIATO -> FERMO [ label = "CT5 && centrato" ];
 	RILASCIATO -> INIZIALIZZATO [ label = "CT0 && !centrato" ];
 	RILASCIATO -> SPENTO [ label = "CT6" ];
-	LIBERO -> FERMO [ label = "CT5 && centrato" ];
-	LIBERO -> INIZIALIZZATO [ label = "CT0 && !centrato" ];
-	LIBERO -> SPENTO [ label = "CT6" ];
 	TUTTI -> EMERGENZA [ label = "EM2" ];
 	EMERGENZA -> INIZIALIZZATO [ label = "CT0" ];
 }
