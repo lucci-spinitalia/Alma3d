@@ -5,6 +5,13 @@ import unittest
 
 
 class TestKinematic(unittest.TestCase):
+    '''Test per il controllo della cinematica
+
+    Devo inserire un controllo per l'orientamento degli assi
+
+    (Roll, Pitch, Yaw) -> (Roll, Pitch, Yaw) -> (Step_119, Step_120, Step_121, Step_122) -> (Roll, Pitch, Yaw) -> (Roll, Pitch, Yaw)
+
+    '''
 
     real_height = 1.685
 

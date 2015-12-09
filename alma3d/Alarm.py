@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 
-# Importazioni globali
 import RPi.GPIO as GPIO
 import smbus
 import sys
 import traceback
 import logging
-
-# Importazioni di package
-from Config import Config
+import ConfigParser
 
 
 class Alarm():
@@ -21,18 +18,21 @@ class Alarm():
 
         logging.info("Initializing ALMA_Alarm class")
 
+        if tripod is None:
+            ini = ConfigParser.ConfigParser()
+            ini.read('/opt/spinitalia/service/config.ini')
+        else:
+            ini = tripod.ini
+
         # Per riportare allarmi al programma
         self.tripod = tripod
-    
-        # Carico il file di configurazione
-        self.config = Config()
 
         # Inizializzo le variabili        
         self.buzzer = False
         self.green = True
         self.yellow = False
         self.red = False
-        self.INPUT_PIN = self.config.FENCE_PIN   # Seleziona il pin 12
+        self.INPUT_PIN = ini.getint('System', 'fence_pin')
         self.isFencePresent = False
         self.isFenceEnabled = True
         self.isFencedCrossed = False
@@ -265,8 +265,9 @@ if __name__ == '__main__':
 
         def __init__(self):
 
-            self.config = Config()
-            self.config.isFake = True
+            self.ini = ConfigParser.ConfigParser()
+            self.ini.read('/opt/spinitalia/service/config.ini')
+
             self.motor_address_list = ['119', '120', '121', '122']
 
         def update_import_progress(self, progress, rownum):

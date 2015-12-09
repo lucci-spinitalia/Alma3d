@@ -27,7 +27,7 @@ digraph canopenshell_machine {
 	LIBERO -> INIZIALIZZATO [ label = "CT0 && !centrato" ];
 	LIBERO -> SPENTO [ label = "CT6" ];
 	TUTTI -> EMERGENZA [ label = "EM2" ];
-  TUTTI -> EMERGENZA [ label = "intrusione" ];
+	TUTTI -> EMERGENZA [ label = "intrusione" ];
 	EMERGENZA -> INIZIALIZZATO [ label = "CT0" ];
 }
 

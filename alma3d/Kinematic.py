@@ -71,8 +71,11 @@ class Kinematic():
 
     def __init__(self, tripod=None):
 
-        ini = ConfigParser.ConfigParser()
-        ini.read('/opt/spinitalia/service/config.ini')
+        if tripod is None:
+            ini = ConfigParser.ConfigParser()
+            ini.read('/opt/spinitalia/service/config.ini')
+        else:
+            ini = tripod.ini
 
         # Legge il file di configurazione
         self.base_radius = ini.getfloat('Dimensions', 'base_radius')

@@ -34,6 +34,9 @@ class Tripod():
 
         logging.info("Initializing ALMA_Tripod class")
 
+        self.ini = ConfigParser.ConfigParser()
+        self.ini.read('/opt/spinitalia/service/config.ini')
+
         # Istanzio le classi
         self.config = Config()
         self.canopen = Canopen(self)
