@@ -1,4 +1,5 @@
 digraph canopenshell_machine {
+	size ="4,8";
 	rankdir=LR;
 	node [shape = doublecircle]; ACCESO
 	node [shape = circle, style = filled]; SIMULAZIONE RICERCA_CENTRO CENTRAGGIO
@@ -10,7 +11,8 @@ digraph canopenshell_machine {
 	INIZIALIZZATO -> RILASCIATO [ label = "CT2 P3" ];
 	INIZIALIZZATO -> SPENTO [ label = "CT6" ];
 	RICERCA_CENTRO -> CENTRATO [ label = "fine" ];
-	CENTRATO -> SIMULAZIONE [ label = "CT4" ];
+	CENTRATO -> ANALIZZATO [ label = "CT3" ];
+	ANALIZZATO -> SIMULAZIONE [ label = "CT4" ];
 	CENTRATO -> RILASCIATO [ label = "CT2 P3" ];
 	CENTRATO -> SPENTO [ label = "CT6" ];
 	SIMULAZIONE -> FERMO [ label = "fine" ];

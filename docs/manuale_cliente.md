@@ -61,7 +61,7 @@ Gli angoli ed il tempo sono espressi secondo la seguente notazione:
 
   Roll:     -42.000 ... +42.000     gradi
   Pitch:    -45.000 ... +45.000     gradi
-  Yaw:  -840000.000 ... +840000.000 gradi  (c.a */- 2300 giri)
+  Yaw:  -840000.000 ... +840000.000 gradi  (c.a +/- 2300 giri)
   Time:           1 ... 256000  ms
 
 Il tempo si intende come quello necessario a raggiungere la posizione

@@ -108,7 +108,7 @@ class PositionProtocol(protocol.Protocol):
 
             # R12.321;P-2.231;Y0.000;VR12.121;VP0.000;VY0.000;AS0;T10;C0
             self.transport.write(
-                "R{:+07.3f};P{:+07.3f};Y{:+08.3f};VR{:+07.3f};VP{:+07.3f};VY{:+07.3f};AS{};T{:04.1f};C{:03d}\n".format(
+                "R{:+07.3f};P{:+07.3f};Y{:+08.3f};RS{:+07.3f};PS{:+07.3f};YS{:+07.3f};AS{};T{:04.1f};C{:03d}\n".format(
                     roll,
                     pitch,
                     yaw,
