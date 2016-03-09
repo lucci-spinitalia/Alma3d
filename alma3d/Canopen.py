@@ -22,12 +22,12 @@ class Canopen(protocol.ProcessProtocol):
         self.tripod = tripod
         self.is_sending_position = 0
         self.is_lowering = 0
-        #self.VT_L = 1255360
-        #self.AT_L = 1000
-        self.VT_L = 600000
-        self.AT_L = 500
-        self.VT_R = 100000
-        self.AT_R = 200
+        #self.vt_l = 1255360
+        #self.at_l = 1000
+        self.vt_l = 600000
+        self.at_l = 500
+        self.vt_r = 100000
+        self.at_r = 200
         self.relative_speed = 0.1
 
     def sendCommand(self, command, sender):
@@ -57,8 +57,8 @@ class Canopen(protocol.ProcessProtocol):
 
             self.sendCommand("CT1 M120 P{} VM{} AM{}".format(
                 318000,
-                self.tripod.canopen.VT_L / 10,
-                self.tripod.canopen.AT_L / 10
+                self.tripod.canopen.vt_l / 10,
+                self.tripod.canopen.at_l / 10
             ), "self")
             self.is_lowering = 2
             return
@@ -67,8 +67,8 @@ class Canopen(protocol.ProcessProtocol):
 
             self.sendCommand("CT1 M121 P{} VM{} AM{}".format(
                 318000,
-                self.tripod.canopen.VT_L / 10,
-                self.tripod.canopen.AT_L / 10
+                self.tripod.canopen.vt_l / 10,
+                self.tripod.canopen.at_l / 10
             ), "self")
             self.is_lowering = 3
             return
@@ -77,8 +77,8 @@ class Canopen(protocol.ProcessProtocol):
 
             self.sendCommand("CT1 M122 P{} VM{} AM{}".format(
                 318000,
-                self.tripod.canopen.VT_L / 10,
-                self.tripod.canopen.AT_L / 10
+                self.tripod.canopen.vt_l / 10,
+                self.tripod.canopen.at_l / 10
             ), "self")
             self.is_lowering = 0
             return
@@ -86,28 +86,28 @@ class Canopen(protocol.ProcessProtocol):
         # Se sto posizionando il tripode, invio prima tutti i comandi
         elif self.is_sending_position == 1:
 
-            VT_L = int(self.tripod.canopen.VT_L / 100.0 * self.relative_speed)
-            AT_L = int(self.tripod.canopen.AT_L / 100.0 * self.relative_speed)
+            vt_l = int(self.tripod.canopen.vt_l / 100.0 * self.relative_speed)
+            at_l = int(self.tripod.canopen.at_l / 100.0 * self.relative_speed)
             self.sendCommand("CT1 M120 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[0],
-                                                             VT_L, AT_L), "self")
+                                                             vt_l, at_l), "self")
             self.is_sending_position = 2
             return
 
         elif self.is_sending_position == 2:
 
-            VT_L = int(self.tripod.canopen.VT_L / 100.0 * self.relative_speed)
-            AT_L = int(self.tripod.canopen.AT_L / 100.0 * self.relative_speed)
+            vt_l = int(self.tripod.canopen.vt_l / 100.0 * self.relative_speed)
+            at_l = int(self.tripod.canopen.at_l / 100.0 * self.relative_speed)
             self.sendCommand("CT1 M121 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[1],
-                                                             VT_L, AT_L), "self")
+                                                             vt_l, at_l), "self")
             self.is_sending_position = 3
             return
 
         elif self.is_sending_position == 3:
 
-            VT_L = int(self.tripod.canopen.VT_L / 100.0 * self.relative_speed)
-            AT_L = int(self.tripod.canopen.AT_L / 100.0 * self.relative_speed)
+            vt_l = int(self.tripod.canopen.vt_l / 100.0 * self.relative_speed)
+            at_l = int(self.tripod.canopen.at_l / 100.0 * self.relative_speed)
             self.sendCommand("CT1 M122 P{} VM{} AM{} S".format(self.tripod.kinematic.last_conversion_steps[2],
-                                                               VT_L, AT_L), "self")
+                                                               vt_l, at_l), "self")
             self.is_sending_position = 0
             self.sender = "remote"
             return
@@ -116,18 +116,11 @@ class Canopen(protocol.ProcessProtocol):
         if data[:6] == "OK CT4":
             self.tripod.last_sim_file.close()
 
-        # Se il comando proviene dall'utente restituisce la risposta
-        logging.info("From Canopen '%s'" % data.replace("\n", "\\n"))
-        if self.sender == "remote":
-            logging.info("  To TCP '%s'" % data.replace("\n", "\\n"))
-            self.tripod.send_tcp_response(data)
-        else:
-            logging.info("  Private message")
-
         # Se viene mandata la conferma di presenza di motori, imposta il parametro di peso
         if self.is_sending_weight_correction == 2:
             self.sendCommand("PR5 M122 O60FB S008 T32s {:4X}".format(self.weight_value), "local")
             self.is_sending_weight_correction = 0
+            self.tripod.send_tcp_response("OK CT0")
         elif self.is_sending_weight_correction == 1:
             self.sendCommand("PR5 M121 O60FB S008 T32s {:4X}".format(self.weight_value), "local")
             self.is_sending_weight_correction = 2
@@ -144,6 +137,15 @@ class Canopen(protocol.ProcessProtocol):
                 self.weight_value = ((-600000 - (int(self.tripod.antenna_weight) * 2000)) & 0xffffffff)
                 self.sendCommand("PR5 M120 O60FB S008 T32s {:4X}".format(self.weight_value), "local")
                 self.is_sending_weight_correction = 1
+                self.sender = "local"
+
+        # Se il comando proviene dall'utente restituisce la risposta
+        logging.info("From Canopen '%s'" % data.replace("\n", "\\n"))
+        if self.sender == "remote":
+            logging.info("  To TCP '%s'" % data.replace("\n", "\\n"))
+            self.tripod.send_tcp_response(data)
+        else:
+            logging.info("  Private message")
 
     def errReceived(self, data):
         """Sono stati ricevuti bytes su STDERR dal sotto-processo

@@ -152,8 +152,8 @@ class Alarm():
     
         if self.isFencePresent:
             if self.isFencedCrossed:
-               self.isFencedCrossed = False
-               self.all_off() 
+                self.isFencedCrossed = False
+                self.all_off()
 
     def detect_fence_change(self, channel):
 
@@ -163,6 +163,7 @@ class Alarm():
         if self.isFencePresent:
             if not GPIO.input(self.INPUT_PIN):
                 if not self.isFencedCrossed:
+                    logging.info("Crossed fence, channel {0} active.".format(channel))
                     self.isFencedCrossed = True
                     self.tripod.goto_em2()
 
@@ -270,7 +271,8 @@ if __name__ == '__main__':
 
             self.motor_address_list = ['119', '120', '121', '122']
 
-        def update_import_progress(self, progress, rownum):
+        @staticmethod
+        def update_import_progress(progress, rownum):
 
             print "{} / {}".format(progress, rownum)
 

@@ -7,9 +7,8 @@ import os
 import shutil
 import sys
 import traceback
-import Config
+import ConfigParser
 import subprocess
-
 
 class ControlProtocol(LineReceiver):
     """Gestione del protocollo ALMA
@@ -27,9 +26,12 @@ class ControlProtocol(LineReceiver):
     
         logging.info("Initializing ALMA_Protocol class")
 
-        # Carico il file di configurazione
-        self.config = Config.Config()
-        
+        if tripod is None:
+            self.ini = ConfigParser.ConfigParser()
+            self.ini.read('/opt/spinitalia/service/config.ini')
+        else:
+            self.ini = tripod.ini
+
         # Inizializzo le variabili
         self.old_status = 99 #################################
         self.can_status = '' #################################
@@ -41,7 +43,7 @@ class ControlProtocol(LineReceiver):
         self.login_pause = 1
         
         # Se non configurato entra direttamente senza richiedere il login
-        if not self.config.isLoginRequired:
+        if not self.ini.getboolean('System', 'login_required'):
             self.tripod.userLoggedIn = True
             self.user = 'alma_user'
             logging.info("Pre-logged in with alma_user")
@@ -61,22 +63,25 @@ class ControlProtocol(LineReceiver):
     def connectionMade(self):
     
         # Controllo che non sia gia' connesso qualcuno
-        if self.tripod.isClientConnected:
-            logging.info("Connection request but already connected from %s" % self.tripod.connectedAddress)
-            self.sendLine("#Ip address %s already connected" % self.tripod.connectedAddress)
+        if self.tripod.isCmdClientConnected:
+            logging.info("Command connection request but already connected from %s" % self.tripod.cmdConnectedAddress)
+            self.sendLine("AERR 90: Connessione comandi gia' effettuata dall'indirizzo Ip {}".format(
+                self.tripod.cmdConnectedAddress)
+            )
             self.transport.loseConnection()
             return
         else:
-            logging.info("Connection request from %s" % self.tripod.connectedAddress)
-            self.tripod.isClientConnected = True
+            logging.info("Connection request from %s" % self.tripod.cmdConnectedAddress)
+            self.tripod.isCmdClientConnected = True
+            self.sendLine("Spinitalia ALMA 3D v1.02a")
 
     def connectionLost(self, reason):
 
         print "Connection lost with TCP client ({})!".format(reason)
         
-        self.tripod.isClientConnected = False
-        self.tripod.connectedAddress = ""
-			
+        self.tripod.isCmdClientConnected = False
+        self.tripod.cmdConnectedAddress = ""
+
     def lineReceived(self, line):
         """Ricezione dei comandi dal client TCP
 
@@ -100,7 +105,7 @@ class ControlProtocol(LineReceiver):
         # Se non si e' loggato qualcuno, non accetto alcun comando
         if not self.tripod.userLoggedIn:        
 
-            login = line.split(" ")
+            login = line.strip().split(" ")
             time_elapsed = time.time() - self.last_login
             if time_elapsed < self.login_pause:
                 self.sendLine("CERR LGN 1: Last login attemp was wrong, waiting %s seconds" % self.login_pause)
@@ -148,9 +153,9 @@ class ControlProtocol(LineReceiver):
                     if self.tripod.kinematic.convert_point(matches.group(1), matches.group(2), matches.group(3)):
                         # self.tripod.kinematic.last_conversion_steps
                         # Dovrei mandare
-                        # VT_R = Velocity * 65536 * 360 / 115     ( Gradi al secondo   )
-                        # AT_R = Acceleration * 8192 * 360 / 115  ( Gradi al secondo^2 )
-                        # CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], VT_R, VT_R)
+                        # vt_r = Velocity * 65536 * 360 / 115     ( Gradi al secondo   )
+                        # at_r = Acceleration * 8192 * 360 / 115  ( Gradi al secondo^2 )
+                        # CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], vt_r, at_r)
                         # CT1 M120 P1231232 VM123 AM124
                         # CT1 M121 P1231232 VM123 AM124
                         # CT1 M122 P1231232 VM123 AM124
@@ -159,10 +164,10 @@ class ControlProtocol(LineReceiver):
                         if matches.group(4).isNumeric():
                             if 0 < int(matches.group(4)) < 100:
                                 self.tripod.canopen.relative_speed = matches.group(4)
-                        VT_R = int(self.tripod.canopen.VT_R / 100.0 * self.tripod.canopen.relative_speed)
-                        AT_R = int(self.tripod.canopen.AT_R / 100.0 * self.tripod.canopen.relative_speed)
-                        line = "CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], VT_R,
-                                                               AT_R)
+                        vt_r = int(self.tripod.canopen.vt_r / 100.0 * self.tripod.canopen.relative_speed)
+                        at_r = int(self.tripod.canopen.at_r / 100.0 * self.tripod.canopen.relative_speed)
+                        line = "CT1 M119 P{} VM{} AM{}".format(self.tripod.kinematic.last_conversion_steps[3], vt_r,
+                                                               at_r)
                         self.tripod.canopen.sendCommand(line, "self")
                         return
 
@@ -172,13 +177,28 @@ class ControlProtocol(LineReceiver):
                 if self.tripod.canStatus == '4':
 
                     logging.info("Copia dei comandi di homing")
-                    if not os.path.exists(self.config.MOT_DATA):
-                        os.makedirs(self.config.MOT_DATA)
+                    if not os.path.exists(self.ini.get("Path", "motor_data_path")):
+                        os.makedirs(self.ini.get("Path", "motor_data_path"))
                     # TODO: Controllare che inizi con @M
                     for motor_address in self.tripod.motorsAddress:
-                        shutil.copy(self.config.DEF_MOVE + str(motor_address) + '.mot.hom',
-                                    self.config.MOT_DATA + str(motor_address) + self.config.MOT_EXT)
-                        logging.info("  - %s" % self.config.DEF_MOVE + str(motor_address) + '.mot.hom')
+                        if self.ini.getboolean("System", "canopen_fake"):
+                            shutil.copy(
+                                self.ini.get("Path", "position_path") + str(motor_address) + '.mot.hom',
+                                self.ini.get("Path", "motor_data_path") +
+                                str(motor_address) +
+                                self.ini.get("Path", "motor_ext_fake")
+                            )
+                        else:
+                            shutil.copy(
+                                self.ini.get("Path", "position_path") + str(motor_address) + '.mot.hom',
+                                self.ini.get("Path", "motor_data_path") +
+                                str(motor_address) +
+                                self.ini.get("Path", "mot_ext")
+                            )
+                        logging.info("  - %s".format(
+                            self.ini.get("Path", "position_path") + str(motor_address) + '.mot.hom'
+                            )
+                        )
                     # Annullo la simulazione memorizzata
                     self.tripod.last_sim = ""
 
@@ -193,8 +213,8 @@ class ControlProtocol(LineReceiver):
                 self.tripod.canopen.is_lowering = 1
                 line = "CT1 M119 P{} VM{} AM{}".format(
                     0,
-                    int(self.tripod.canopen.VT_R / 10),
-                    int(self.tripod.canopen.AT_R / 10)
+                    int(self.tripod.canopen.vt_r / 10),
+                    int(self.tripod.canopen.at_r / 10)
                 )
                 self.tripod.canopen.sendCommand(line, "self")
 
@@ -213,7 +233,7 @@ class ControlProtocol(LineReceiver):
             elif line.rstrip().upper()[:3] == 'CT4':
 
                 md5sum = self.tripod.last_sim
-                filename = "{}posizione_motori_{}.csv".format(self.tripod.config.LOG_PATH, md5sum)
+                filename = "{}posizione_motori_{}.csv".format(self.ini.get("Path", "log_path"), md5sum)
                 self.tripod.last_sim_file = open(filename, "w+")
                 os.chmod(filename, 0666)
                 self.tripod.last_sim_file.write("Counter;Time;Roll_DK;Pitch_DK;Yaw_DK;Step_119_Motor;Step_120_Motor;"
@@ -229,13 +249,10 @@ class ControlProtocol(LineReceiver):
                 logging.info("Poweroff says: '{}'".format(output))
                 return
 
-            # Se era PR7, invio la simulazione memorizzata
+            # Se era PR7, stampo la versione attuale
             elif line.rstrip().upper()[:3] == 'PR7':
 
-                if self.tripod.last_sim == "":
-                    self.transport.write("CERR PR7 0: No simulation loaded\n")
-                else:
-                    self.transport.write("OK PR7 {}\n".format(self.tripod.last_sim))
+                self.transport.write("OK PR7: v1.02a\n")
                 return
 
             # Se era PR7, invio la simulazione memorizzata
@@ -259,16 +276,7 @@ class ControlProtocol(LineReceiver):
                     network_file.write("  netmask {}\n".format(matches.group(2)))
                     network_file.write("  gateway {}\n".format(matches.group(3)))
                     network_file.write("\n")
-                    network_file.write("#auto wlan0\n")
-                    network_file.write("#allow-hotplug wlan0\n")
-                    network_file.write("#iface wlan0 inet manual\n")
-                    network_file.write("#wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf\n")
-                    network_file.write("\n")
-                    network_file.write("#auto wlan1\n")
-                    network_file.write("#allow-hotplug wlan1\n")
-                    network_file.write("#iface wlan1 inet manual\n")
-                    network_file.write("#wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf\n")
-                    network_file.write("\n")
+                    network_file.write("# CAN bus\n")
                     network_file.write("auto can0\n")
                     network_file.write("iface can0 inet manual\n")
                     network_file.write("pre-up /sbin/ip link set can0 qlen 1000 type can bitrate 1000000 triple-sampling on\n")

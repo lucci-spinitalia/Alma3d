@@ -3,7 +3,6 @@
 from twisted.internet import reactor
 import logging
 import time
-import subprocess
 import threading
 import traceback
 import sys
@@ -493,13 +492,13 @@ class Kinematic():
     def zyx_r_to_xyz(zyx3_r, zyx2_r, zyx1_r):
         """Converte una terna rotazionale da interna in avionica
 
-        Per passare dalla notazione:
+        Per passare dalla notazione interna:
 
                          |  c1c2    c1s2s3 - c3s1    s1s3 + c1c3s2  |  1 = Rz = Yaw
                 Z1Y2X3 = |  c2s1    c1c3 + s1s2s3    c3s1s2 - c1s3  |  2 = Ry = Pitch
                          |  -s2         c2s3             c2c3       |  3 = Rx = Roll
 
-        Alla notazione:
+        Alla notazione avionica:
 
                          |      c2c3             -c2s3         s2   |  1 = Rx = Roll
                 X1Y2Z3 = |  c1s3 + c3s1s2    c1c3 - s1s2s3   -c2s1  |  2 = Ry = Pitch
@@ -718,20 +717,21 @@ class Kinematic():
             angles_r_search[1] += err[1]
             angles_r_search[2] += err[2]
 
-            # logging.info("Stimulus [{:+9.6f}, {:+9.6f}, {:+9.6f}], "
-            #           "Obtained [{:+9.6f}, {:+9.6f}, {:+9.6f}], "
-            #           "Error [{:+9.6f}, {:+9.6f}, {:+9.6f}]".format(
-            #               angles_r_search[0],
-            #               angles_r_search[1],
-            #               angles_r_search[2],
-            #               self.dk.zyx3_r,
-            #               self.dk.zyx2_r,
-            #               self.dk.zyx1_r,
-            #               N.degrees(err[0]),
-            #               N.degrees(err[1]),
-            #               N.degrees(err[2])
-            #           )
-            # )
+            logging.info(
+                "Stimulus [{:+9.6f}, {:+9.6f}, {:+9.6f}], "
+                "Obtained [{:+9.6f}, {:+9.6f}, {:+9.6f}], "
+                "Error [{:+9.6f}, {:+9.6f}, {:+9.6f}]".format(
+                    angles_r_search[0],
+                    angles_r_search[1],
+                    angles_r_search[2],
+                    self.zyx3_r,
+                    self.zyx2_r,
+                    self.zyx1_r,
+                    err[0] / Kinematic.M_PI * 180.0,
+                    err[1] / Kinematic.M_PI * 180.0,
+                    err[2] / Kinematic.M_PI * 180.0
+                )
+            )
 
         self.cycles = cycles_used
         self.icycles = i
@@ -902,7 +902,10 @@ class Kinematic():
                             logging.warn("File {} opened".format(file_name))
                             motor_file[motor] = open(file_name, "w+")
                             os.chmod(file_name, 0666)
-                        log_conversione = open("{}conversione_angoli_step_{}.csv".format(self.tripod.config.LOG_PATH, md5_sum_file), "w+")
+                        log_conversione = open(
+                            "{}conversione_angoli_step_{}.csv".format(
+                                self.ini.get("Path", "log_path"), md5_sum_file), "w+"
+                        )
                         log_conversione.write("Line;Time;Roll;Pitch;Yaw;Step_119_IK;Step_120_IK;Step_121_IK;Step_122_IK\n")
                         time_log = 0.0
 
@@ -1175,7 +1178,10 @@ def test_pitch_problem():
     my_yaw = 0.0
     motor_steps = [0L, 0L, 0L, 0L]
 
-    log_conversion = open("{}/conversion_{}.csv".format(my_tripod.config.LOG_PATH, my_tripod.last_sim_file), "w+")
+    log_henry = open("{}/conversion_{}.csv".format(
+        self.ini.get("Path", "log_path"),
+        my_tripod.last_sim_file
+    ), "w+")
     log_henry.write("Count;ERoll;EPitch;EYaw;Roll;Pitch;Yaw;Step_119;Step_120;Step_121;Step_121;CRoll;CPitch;CYaw;"
                     "ICycles;Err0;Err1;Err2;DCycles\n")
 
@@ -1303,18 +1309,18 @@ if __name__ == '__main__':
     #   - error
     #   - critical
     FORMAT = "[%(filename)s:%(lineno)3s - %(funcName)20s() ] %(message)s"
-    logging.basicConfig(format=FORMAT, level=logging.DEBUG)
+    logging.basicConfig(format=FORMAT, level=logging.INFO)
 
     # Per eseguire i test
-    import alma3d.Config
+    import ConfigParser
 
     class Tripod():
 
         def __init__(self):
 
-            self.config = alma3d.Config.Config()
-            self.config.isFake = True
             self.motor_address_list = ['119', '120', '121', '122']
+            self.ini = ConfigParser.ConfigParser()
+            self.ini.read('/opt/spinitalia/service/config.ini')
 
         def update_import_progress(self, progress, rownum):
 
@@ -1332,9 +1338,9 @@ if __name__ == '__main__':
     k = Kinematic(my_tripod)
 
     # Provo la velocita'
-    test_speed()
-    test_speed_fast()
-    k.calc_ik(29, 0, 0)
+    #test_speed()
+    #test_speed_fast()
+    #k.calc_ik(29, 0, 0)
 
     # Provo la cinematica inversa e trovo la combinazione di angoli che porta alla posizione limite dell'attuatore
     #for i in range(30):
@@ -1360,3 +1366,7 @@ if __name__ == '__main__':
 
     # Roll, Pitch, Yaw
     #test_conversion(k)
+    k.calc_ik(0, 20, 0.000)
+    print "{}, {}".format(k.cycles, k.icycles)
+    k.calc_ik(20, 0, 0.000)
+    print "{}, {}".format(k.cycles, k.icycles)

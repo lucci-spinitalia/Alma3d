@@ -437,9 +437,9 @@ Esempio:
     <tcp< OK CT2 P4
           
 
-### CT3 <nome file>
+### CT3 \<nome file\>
 
-Avvia il controllo della simulazione <nome file> che deve essere presente nella nella cartella condivisa '\\TRIPODEALMA3D\' 
+Avvia il controllo della simulazione \<nome file\> che deve essere presente nella nella cartella condivisa '\\TRIPODEALMA3D\' 
 
 Se il contenuto del file risulta regolare, il comando restituisce:
 

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from twisted.internet import reactor, task
-from Config import Config
 from Alarm import Alarm
 from Canopen import Canopen
 from Kinematic import Kinematic
@@ -12,6 +11,7 @@ import sys
 from time import sleep
 import stat
 import logging
+import ConfigParser
 
 
 class Tripod():
@@ -38,7 +38,6 @@ class Tripod():
         self.ini.read('/opt/spinitalia/service/config.ini')
 
         # Istanzio le classi
-        self.config = Config()
         self.canopen = Canopen(self)
         self.alarm = Alarm(self)
         self.kinematic = Kinematic(self)
@@ -120,7 +119,7 @@ class Tripod():
         # Avvio il server CANOPEN
         # usePTY serve ad evitare l'ECHO
         # INFO: uso stdbuf per evitare il buffering dell'output se non in terminale
-        if self.config.isFake:
+        if self.ini.getboolean("System", "canopen_fake"):
             reactor.spawnProcess(
                 self.canopen,
                 "/usr/bin/stdbuf",
@@ -128,7 +127,7 @@ class Tripod():
                     "stdbuf",
                     "--output=L",
                     "--input=0",
-                    "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
+                    "{}alma3d_canopenshell".format(self.ini.get("Path", "base_path")),
                     "fake",
                     "load#libcanfestival_can_socket.so,0,1M,8"
                 ],
@@ -143,7 +142,7 @@ class Tripod():
                     "stdbuf",
                     "--output=L",
                     "--input=0",
-                    "{}alma3d_canopenshell".format(self.config.INSTALL_PATH),
+                    "{}alma3d_canopenshell".format(self.ini.get("Path", "base_path")),
                     "load#libcanfestival_can_socket.so,0,1M,8"
                 ],
                 env=os.environ,
@@ -216,11 +215,18 @@ class Tripod():
 
             else:
                 try:
-                    mode = os.stat(self.config.POS_PIPE).st_mode
-                    if stat.S_ISFIFO(mode):
-                        pipein = open(self.config.POS_PIPE, 'r')
-                        isPipeOpen = True
-                        continue
+                    if self.ini.get("System", "canopen_fake"):
+                        mode = os.stat(self.ini.get("Path", "pipe_position_fake")).st_mode
+                        if stat.S_ISFIFO(mode):
+                            pipein = open(self.ini.get("Path", "pipe_position_fake"), 'r')
+                            isPipeOpen = True
+                            continue
+                    else:
+                        mode = os.stat(self.ini.get("Path", "pipe_position")).st_mode
+                        if stat.S_ISFIFO(mode):
+                            pipein = open(self.ini.get("Path", "pipe_position"), 'r')
+                            isPipeOpen = True
+                            continue
                     sleep(0.5)
 
                 except:

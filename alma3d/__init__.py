@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["Alarm", "Canopen", "Config", "Kinematic", "Tripod"]
+__all__ = ["Alarm", "Canopen", "Kinematic", "Tripod"]
 
 from PositionFactory import PositionFactory
 from ControlFactory import ControlFactory

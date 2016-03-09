@@ -13,13 +13,25 @@ class PositionProtocol(protocol.Protocol):
         self.tripod = tripod
 
     def connectionMade(self):
-        self.tripod.position_factory.numProtocols += 1
-        logging.info("Welcome! There are currently {} open connections".format(
-            self.tripod.position_factory.numProtocols
-        ))
+
+        # Controllo che non sia gia' connesso qualcuno
+        if self.tripod.isPosClientConnected:
+            logging.info("Position connection request but already connected from %s" % self.tripod.posConnectedAddress)
+            self.sendLine("AERR 91: Connessione posizioni gia' effettuata dall'indirizzo Ip {}".format(
+                self.tripod.posConnectedAddress)
+            )
+            self.transport.loseConnection()
+            return
+        else:
+            logging.info("Connection request from %s" % self.tripod.posConnectedAddress)
+            self.tripod.isPosClientConnected = True
 
     def connectionLost(self, reason=None):
-        self.tripod.position_factory.numProtocols -= 1
+
+        logging.info("Connection lost with TCP position client ({})!".format(reason))
+
+        self.tripod.isPosClientConnected = False
+        self.tripod.posConnectedAddress = ""
 
     def send_position(self):
 
@@ -106,9 +118,9 @@ class PositionProtocol(protocol.Protocol):
 
         try:
 
-            # R12.321;P-2.231;Y0.000;VR12.121;VP0.000;VY0.000;AS0;T10;C0
+            # R12.321;P-2.231;Y0.000;VR12.12;VP0.00;VY0.00;AS0;T10;C0
             self.transport.write(
-                "R{:+07.3f};P{:+07.3f};Y{:+08.3f};RS{:+07.3f};PS{:+07.3f};YS{:+07.3f};AS{};T{:04.1f};C{:03d}\n".format(
+                "R{:+07.3f};P{:+07.3f};Y{:+08.3f};RS{:+07.2f};PS{:+07.2f};YS{:+07.2f};AS{};T{:04.1f};C{:03d}\n".format(
                     roll,
                     pitch,
                     yaw,

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from twisted.internet import protocol
-import PositionProtocol
+from PositionProtocol import PositionProtocol
+import logging
+
 
 class PositionFactory(protocol.Factory):
     """Factory di gestione del protocollo di invio delle posizioni ALMA"""
@@ -10,8 +12,11 @@ class PositionFactory(protocol.Factory):
         # Devo impedire il collegamento multiplo!
         self.tripod = tripod
         self.tripod.position_factory = self
-        self.numProtocols = 0
+        self.tripod.isPosClientConnected = False
+        self.tripod.posConnectedAddress = ""
     
     def buildProtocol(self, addr):
-        self.tripod.almaPositionProtocol = PositionProtocol.PositionProtocol(self.tripod)
+        self.tripod.almaPositionProtocol = PositionProtocol(self.tripod)
+        self.tripod.posConnectedAddress = addr
+        logging.info("Position connection request from %s" % addr)
         return self.tripod.almaPositionProtocol
