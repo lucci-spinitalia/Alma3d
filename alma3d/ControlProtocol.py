@@ -255,7 +255,7 @@ class ControlProtocol(LineReceiver):
                 self.transport.write("OK PR7: v1.02a\n")
                 return
 
-            # Se era PR7, invio la simulazione memorizzata
+            # Se era PR4, aggiorno la configurazione della scheda di rete
             elif line.rstrip().upper()[:3] == 'PR4':
 
                 matches = self.find_ip.search(line.rstrip().upper())

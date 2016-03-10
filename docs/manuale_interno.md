@@ -833,7 +833,7 @@ I parametri sono espressi secondo la seguente notazione:
   <yaw>     0.00 ... 360.00 gradi
   <time>       1 ... 256000  ms
 
-Il parametro <time> si intende come quello necessario a raggiungere la posizione indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione del comando.
+Il parametro <time> si intende come quello necessario a raggiungere la posizione indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la sua funzione, il tempo non puo' essere minore di 10 ms, pena l'esclusione del comando.
 
 ## 5.2 Il file simulazione per alma3d_canopenshell
 
@@ -853,7 +853,7 @@ I parametri sono espressi secondo la seguente notazione:
   <step>               -2^31 ... 2^31
   <tempo>                  1 ... 256000    ms
 
-Il parametro <tempo> si intende come quello necessario a raggiungere la posizione indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la sua funzione, il tempo non puo' essere minore di 1 ms, pena l'esclusione del comando.
+Il parametro <tempo> si intende come quello necessario a raggiungere la posizione indicata, e viene espresso in ms, fino ad un massimo di 256000. Vista la sua funzione, il tempo non puo' essere minore di 10 ms, pena l'esclusione del comando.
 
 Esempio:
 
