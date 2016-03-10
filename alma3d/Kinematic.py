@@ -869,9 +869,9 @@ class Kinematic():
 
             filename_complete = self.tripod.config.SIM_PATH + file_found
 
-            if file_found == self.sim_file:
+            if file_found == filename:
                 logging.warn("Found file {}!".format(file))
-                shutil.copyfile(filename, "{}simulazione_{}.csv".format(self.tripod.config.LOG_PATH, filename_complete))
+                shutil.copyfile(filename_complete, "{}simulazione_{}.csv".format(self.tripod.config.LOG_PATH, filename))
                 found_something = True
                 break
 
@@ -886,7 +886,7 @@ class Kinematic():
                 zero_suppression = [1, 1, 1, 1]
                 old_progress = -1
 
-                f = open(filename, 'rb')
+                f = open(filename_complete, 'rb')
                 reader = csv.reader(f, delimiter=';')
                 lines = sum(1 for col in reader)
                 f.seek(0)
